@@ -196,13 +196,7 @@ bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header) {
 	return false;
 }
 
-void sr_encap_and_send_pkt(struct sr_instance* sr,
-                           uint8_t *packet,
-                           unsigned int len,
-                           uint32_t dip,
-                           int send_icmp,
-                           enum sr_ethertype type)
-{
+void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type) {
 	struct sr_arpentry *arp_entry;
 	struct sr_arpreq *arp_req;
 	struct sr_ethernet_hdr eth_hdr;
@@ -217,7 +211,7 @@ void sr_encap_and_send_pkt(struct sr_instance* sr,
 	/* If the entry doesn't exist, send ICMP host unreachable and return if necessary. */
 	if (rt == 0) {
 		if (send_icmp)
-			sr_send_icmp(sr, packet, len, ICMP_UNREACHABLE_TYPE, ICMP_NET_CODE);
+			sr_send_icmp(sr, packet, len, 3, 0);
 		return;
 	}
     
