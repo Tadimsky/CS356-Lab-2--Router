@@ -25,8 +25,17 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 		// destination host unreachable should go back to the senders of packets that were waiting on this request
 
 	struct sr_arpreq * current = sr->cache.requests;
+	struct sr_arpreq * next;
+	if (current) next = current->next;
+
 	while (current != NULL) {
 
+
+		sr_arpreq_handle(sr, current);
+		current = next;
+		if (current) next = current->next;
+
+		/*
 		if (current->times_sent < MAX_SEND_ARP) {
 			// resend the ARP packet
 			current->times_sent++;
@@ -41,9 +50,68 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 			sr_arpreq_destroy(sr->cache, current);
 		}
 		current = current->next;
+		*/
 	}
 
 }
+
+
+void sr_arpreq_handle(struct sr_instance * sr, struct sr_arpreq * req) {
+	if (difftime(time(0), req->sent > 1)) {
+
+	}
+	if (req->times_sent >= 5) {
+		//fail, host is unreachable after 5 attempts
+		send_icmp_host_unreachable(sr, req);
+		sr_arpreq_destroy(&sr->cache, req);
+	}
+	else {
+		//send the arp request and increment times_sent
+		send_arp_request(sr, req);
+		req -> sent = time(0);
+		req -> times_sent++;
+	}
+}
+
+void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
+	struct sr_arp_hdr arp_header;
+	struct sr_if * interface;
+
+	interface = sr_get_interface(sr, req -> packets -> iface);
+
+	arp_header.ar_hrd = htons(arp_hrd_ethernet);
+	arp_header.ar_pro = htons(arp_pro_ip);
+	arp_header.ar_hln = htons(ETHER_ADDR_LEN);
+	arp_header.ar_pln = sizeof(uint32_t);
+	arp_header.ar_op = htons(arp_op_request);
+	memcpy(arp_header.ar_sha, interface->addr, ETHER_ADDR_LEN);
+	arp_header.ar_sip = interface -> ip;
+	arp_header.ar_tip = req -> ip;
+
+	sr_encap_and_send_pkt(sr, (uint8_t *)&arp_header, sizeof(struct sr_arp_hdr), req->ip, 0, ethertype_arp);
+}
+
+void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
+	struct sr_packet * current = req->packets;
+	struct sr_ip_hdr * ip_header;
+
+	while (current != NULL) {
+		ip_header = (struct sr_ip_hdr *) current->buf;
+		sr_encap_and_send_pkt(sr, current->buf, current->len, ip_header->ip_dst, 1, ethertype_ip);
+		current = current->next;
+	}
+}
+
+void send_icmp_host_unreachable(struct sr_instance * sr, struct sr_arpreq * req) {
+	struct sr_packet * current = req -> packets;
+	while (current != NULL) {
+		sr_send_icmp(sr, current->buf, current->len, 3, 1);
+		current = current->next;
+	}
+}
+/*
+ * *********************************************************************
+ */
 
 /* You should not need to touch the rest of this code. */
 
