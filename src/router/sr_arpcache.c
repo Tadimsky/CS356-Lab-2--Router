@@ -12,9 +12,7 @@
 #include "sr_protocol.h"
 
 #define MAX_SEND_ARP 5
-/*
- *
- */
+
 /* 
   This function gets called every second. For each request sent out, we keep
   checking whether we should resend an request or destroy the arp request.
