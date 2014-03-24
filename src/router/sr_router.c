@@ -135,9 +135,11 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 
 	if (sr_packet_is_final_destination(sr, iphdr)) {
 		uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
-		if (ip_proto == ip_protocol_icmp) { /* ICMP */
-
+		if (ip_proto == ip_protocol_icmp) {
 			sr_handle_icmp_packet(sr, packet, len, interface);
+		}
+		else {
+
 		}
 		// we are the final destination
 		// send a port unreachable message to the sender
