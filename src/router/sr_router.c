@@ -125,28 +125,44 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		fprintf(stderr, "This is not a valid IP packet, length is too short.\n");
 		return;
 	}
-	sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet);
+	sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+
 	uint16_t computed_cksum = cksum((void*)packet, len);
 	if (computed_cksum != iphdr->ip_sum) {
 		fprintf(stderr, "This is not a valid IP packet, the checksum does not match.\n");
 		return;
 	}
 
-	uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
-	if (ip_proto == ip_protocol_icmp) { /* ICMP */
-		minsize += sizeof(sr_icmp_hdr_t);
-		if (len < minsize) {
-			fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
-			return;
+	if (sr_packet_is_final_destination(sr, iphdr)) {
+		uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
+		if (ip_proto == ip_protocol_icmp) { /* ICMP */
+
+			sr_handle_icmp_packet(sr, packet, len, interface);
 		}
-		sr_handle_icmp_packet(sr, packet, len, interface);
+		// we are the final destination
+		// send a port unreachable message to the sender
 	}
+	else {
+		// forward the packet
+		// decrement ttl by 1
+		// recompute checksum
+		// etc
+
+	}
+
 }
 
 void sr_handle_icmp_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
 		char* interface) {
+	uint32_t minsize = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
+	if (len < minsize) {
+		fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
+		return;
+	}
+	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
 	// implement this
 }
 
