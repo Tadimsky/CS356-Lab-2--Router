@@ -37,11 +37,9 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 			struct sr_packet * packets = current->packets;
 			while (packets != NULL) {
 				// send ICMP host unreachable to sender
-
 			}
 			sr_arpreq_destroy(sr->cache, current);
 		}
-
 		current = current->next;
 	}
 

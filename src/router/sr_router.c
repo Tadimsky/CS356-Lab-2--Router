@@ -32,21 +32,21 @@
 
 void sr_init(struct sr_instance* sr)
 {
-    /* REQUIRES */
-    assert(sr);
+	/* REQUIRES */
+	assert(sr);
 
-    /* Initialize cache and cache cleanup thread */
-    sr_arpcache_init(&(sr->cache));
+	/* Initialize cache and cache cleanup thread */
+	sr_arpcache_init(&(sr->cache));
 
-    pthread_attr_init(&(sr->attr));
-    pthread_attr_setdetachstate(&(sr->attr), PTHREAD_CREATE_JOINABLE);
-    pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
-    pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
-    pthread_t thread;
+	pthread_attr_init(&(sr->attr));
+	pthread_attr_setdetachstate(&(sr->attr), PTHREAD_CREATE_JOINABLE);
+	pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
+	pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
+	pthread_t thread;
 
-    pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
-    
-    /* Add initialization code here! */
+	pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
+
+	/* Add initialization code here! */
 
 } /* -- sr_init -- */
 
@@ -67,18 +67,72 @@ void sr_init(struct sr_instance* sr)
  *---------------------------------------------------------------------*/
 
 void sr_handlepacket(struct sr_instance* sr,
-        uint8_t * packet/* lent */,
-        unsigned int len,
-        char* interface/* lent */)
+		uint8_t * packet/* lent */,
+		unsigned int len,
+		char* interface/* lent */)
 {
-  /* REQUIRES */
-  assert(sr);
-  assert(packet);
-  assert(interface);
+	/* REQUIRES */
+	assert(sr);
+	assert(packet);
+	assert(interface);
 
-  printf("*** -> Received packet of length %d \n",len);
+	printf("*** -> Received packet of length %d \n",len);
+	/* Ethernet */
 
-  /* fill in code here */
+	// check if packet is valid ethernet
+	uint32_t minsize = sizeof(sr_ethernet_hdr_t);
+	if (len < minsize) {
+		fprintf(stderr, "This is not a valid ETHERNET packet, length is too short.");
+		return;
+	}
+	uint16_t  type = ethertype(packet);
+	switch (type) {
+	case ethertype_ip:
+		sr_handle_ip_packet(sr, packet, len, interface);
+		break;
+
+	case ethertype_arp:
+		sr_handle_arp_packet(sr, packet, len, interface);
+		break;
+	default:
+
+		return;
+	}
+
 
 }/* end sr_ForwardPacket */
+
+
+void sr_handle_arp_packet(struct sr_instance* sr,
+		uint8_t * packet/* lent */,
+		unsigned int len,
+		char* interface) {
+	uint32_t minsize = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
+	if (len < minsize) {
+		fprintf(stderr, "This is not a valid ARP packet, length is too short.\n");
+		return;
+	}
+
+}
+
+void sr_handle_ip_packet(struct sr_instance* sr,
+		uint8_t * packet/* lent */,
+		unsigned int len,
+		char* interface) {
+
+	uint32_t minsize = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t);
+	if (len < minsize) {
+		fprintf(stderr, "This is not a valid IP packet, length is too short.\n");
+		return;
+	}
+	uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
+	if (ip_proto == ip_protocol_icmp) { /* ICMP */
+		minsize += sizeof(sr_icmp_hdr_t);
+		if (len < minsize) {
+			fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
+			return;
+		}
+	}
+}
+
 
