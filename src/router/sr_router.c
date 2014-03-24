@@ -128,10 +128,13 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 	sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
 	uint16_t computed_cksum = cksum((void*)packet, len);
-	if (computed_cksum != iphdr->ip_sum) {
+	uint16_t old_sum = iphdr->ip_sum;
+	iphdr->ip_sum = 0;
+	if (computed_cksum != old_sum) {
 		fprintf(stderr, "This is not a valid IP packet, the checksum does not match.\n");
 		return;
 	}
+	iphdr->ip_sum = computed_cksum;
 
 	if (sr_packet_is_final_destination(sr, iphdr)) {
 		uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
@@ -149,7 +152,6 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		// decrement ttl by 1
 		// recompute checksum
 		// etc
-
 	}
 
 }
