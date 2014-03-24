@@ -139,8 +139,15 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
 			return;
 		}
-		// process icmp
+		sr_handle_icmp_packet(sr, packet, len, interface);
 	}
+}
+
+void sr_handle_icmp_packet(struct sr_instance* sr,
+		uint8_t * packet/* lent */,
+		unsigned int len,
+		char* interface) {
+	// implement this
 }
 
 /**
