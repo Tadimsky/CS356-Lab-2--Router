@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 #include <assert.h>
-
+#include <stdbool.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -87,14 +87,14 @@ void sr_handlepacket(struct sr_instance* sr,
 	}
 	uint16_t  type = ethertype(packet);
 	switch (type) {
-	case ethertype_ip:
-		sr_handle_ip_packet(sr, packet, len, interface);
-		break;
+		case ethertype_ip:
+			sr_handle_ip_packet(sr, packet, len, interface);
+			break;
 
-	case ethertype_arp:
-		sr_handle_arp_packet(sr, packet, len, interface);
-		break;
-	default:
+		case ethertype_arp:
+			sr_handle_arp_packet(sr, packet, len, interface);
+			break;
+		default:
 
 		return;
 	}
@@ -125,6 +125,13 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		fprintf(stderr, "This is not a valid IP packet, length is too short.\n");
 		return;
 	}
+	sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet);
+	uint16_t computed_cksum = cksum((void*)packet, len);
+	if (computed_cksum != iphdr->ip_sum) {
+		fprintf(stderr, "This is not a valid IP packet, the checksum does not match.\n");
+		return;
+	}
+
 	uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
 	if (ip_proto == ip_protocol_icmp) { /* ICMP */
 		minsize += sizeof(sr_icmp_hdr_t);
@@ -132,7 +139,35 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
 			return;
 		}
+		// process icmp
 	}
 }
 
+/**
+ * Determines whether we are the final destination of the packet.
+ * Iterates through the interfaces of the router to determine this.
+ */
+bool sr_packet_is_final_destination(struct sr_instance* sr, sr_ip_hdr_t * header) {
+	struct sr_if * cur_iface = sr->if_list;
+	while (cur_iface != NULL) {
+		if (header->ip_dst == cur_iface->ip) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Determines whether we are the sender of the current packet.
+ * Iterates through the interfaces of the router to determine this.
+ */
+bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header) {
+	struct sr_if * cur_iface = sr->if_list;
+	while (cur_iface != NULL) {
+		if (header->ip_src == cur_iface->ip) {
+			return true;
+		}
+	}
+	return false;
+}
 
