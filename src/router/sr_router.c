@@ -150,26 +150,28 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 	
 	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
 	
-	if(arphdr->ar_op == 1){ // it's a request
-		arphdr->ar_dha = arphdr->ar_sha;
-		uint32_t target = arphdr->dip;
-		arphdr->ar_dip = arphdr->ar_sip;
+	if(arphdr->ar_op == 1){ /* it's a request */
+        /* implicit decleration stuff TODO fix*/
+        memcpy((void*) (arphdr->ar_tha), (void *) (arphdr->ar_sha), (sizeof(unsigned char) * ETHER_ADDR_LEN));
+		uint32_t target = arphdr->ar_tip;
+		arphdr->ar_tip = arphdr->ar_sip;
 		arphdr->ar_sip = target;
         
 		struct sr_if* interface = sr->if_list;
 		while(interface != NULL){
 			
 			if(interface->ip == target){
-				arphdr->sha = interface->addr;
+                memcpy((void*) (arphdr->ar_sha), (void *) (interface->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
+				/*arphdr->ar_sha = interface->addr;*/
 				break;
 			}
             
 			interface++;
 		}
 	}
-	else if (arphdr->ar_op == 2){ // it's a reply
+	else if (arphdr->ar_op == 2){ /* it's a reply*/
 		
-		sr_arpcache_insert(sr->cache, arphdr->sha, arphdr->sip);
+		sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip);
 		
 	}
     
@@ -240,13 +242,31 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 
 }
 
+/* Create an ethernet frame WITH its payload following
+   Has NO logic for handling data greater than ethernet's MTU
+  destination ethernet address, source ethernet address, packet type ID
+ */
+uint8_t * create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type, uint8_t * payload, int payload_size) {
+    
+    void * pkt = malloc(sizeof(sr_ethernet_hdr_t) + payload_size);
+    sr_ethernet_hdr_t * eth_hdr = (sr_ethernet_hdr_t *) pkt;
+    memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    eth_hdr->ether_type = ether_type;
+
+    void * ptr = pkt;
+    ptr += sizeof(sr_ethernet_hdr_t);
+    memcpy(ptr, payload, payload_size);
+    return (uint8_t *) pkt;
+}
+
 /*
  Create an IP packet
  TODO: not sure what form payload_size should take
  TODO: do these values need nthos?
  TODO: add the actual payload to pkt
  */
-sr_ip_hdr_t * create_ip_packet(uint8_t* payload, uint8_t ip_proto, int payload_size, uint_32_t ip_src, uint_32_t ip_dst){
+sr_ip_hdr_t * create_ip_packet(uint8_t* payload, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
     sr_ip_hdr_t * pkt = malloc(sizeof(sr_ip_hdr_t));
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
      with 4 for relevant fields
