@@ -125,11 +125,12 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
 		char* interface) {
-	uint32_t minsize = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
-	if (len < minsize) {
+	if (len < sizeof(sr_arp_hdr_t)) {
 		fprintf(stderr, "This is not a valid ARP packet, length is too short.\n");
 		return;
 	}
+	sr_arp_hdr_t * arp = (sr_arp_hdr_t*)packet;
+
 
 }
 
@@ -155,9 +156,9 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 	iphdr->ip_sum = computed_cksum;
 
 	if (sr_packet_is_final_destination(sr, iphdr)) {
-		uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
+		uint8_t ip_proto = ip_protocol(packet);
 		if (ip_proto == ip_protocol_icmp) {
-			sr_handle_icmp_packet(sr, packet, len, interface);
+			sr_handle_icmp_packet(sr, packet + sizeof(sr_ip_hdr_t), len - sizeof(sr_ip_hdr_t), interface);
 		}
 		else {
 			/* we are the final destination */
@@ -227,12 +228,11 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
 		char* interface) {
-	uint32_t minsize = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
-	if (len < minsize) {
+	if (len < sizeof(sr_icmp_hdr_t)) {
 		fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
 		return;
 	}
-	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet);
 
 	/* implement this */
     uint8_t type = icmp_hdr->icmp_type;
@@ -243,13 +243,13 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
         uint32_t src_ip = sr_ip_hdr->ip_src;
         /*TODO: not sure where want the malloc to take place, 
         especially if need to create an ip Packet */
-        sr_icmp_hdr_t * echo_reply = malloc(sizeof(src_icmp_hdr_t));
+        sr_icmp_hdr_t * echo_reply = malloc(sizeof(sr_icmp_hdr_t));
         echo_reply->icmp_type = 0;
         echo_reply->icmp_code = 0;
         /*place holder 0 for consistent checksum calculations*/
         echo_reply->icmp_sum = 0;
         /* find actual method call for this address*/
-        uint_32_t this_ip = 0;
+        uint32_t this_ip = 0;
         
         echo_reply->icmp_sum = cksum((void *) echo_reply, (int) sizeof(sr_icmp_hdr_t));
         uint8_t * buf = create_ip_packet(echo_reply, ip_protocol_icmp, ((unsigned int) sizeof(sr_icmp_hdr_t), this_ip, uint_32_t src_ip);
