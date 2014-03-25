@@ -106,11 +106,11 @@ void sr_handlepacket(struct sr_instance* sr,
 	uint16_t  type = ethertype(packet);
 	switch (type) {
 		case ethertype_ip:
-			sr_handle_ip_packet(sr, packet, len, interface);
+			sr_handle_ip_packet(sr, packet + sizeof(sr_ethernet_hdr_t), len - sizeof(sr_ethernet_hdr_t), interface);
 			break;
 
 		case ethertype_arp:
-			sr_handle_arp_packet(sr, packet, len, interface);
+			sr_handle_arp_packet(sr, packet + sizeof(sr_ethernet_hdr_t), len - sizeof(sr_ethernet_hdr_t), interface);
 			break;
 		default:
 
@@ -137,17 +137,17 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
 		char* interface) {
-
-	uint32_t minsize = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t);
-	if (len < minsize) {
+	if (len < sizeof(sr_ip_hdr_t)) {
 		fprintf(stderr, "This is not a valid IP packet, length is too short.\n");
 		return;
 	}
-	sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+	sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet);
 
-	uint16_t computed_cksum = cksum((void*)packet, len);
 	uint16_t old_sum = iphdr->ip_sum;
 	iphdr->ip_sum = 0;
+	uint16_t computed_cksum = cksum((void*)packet, len);
+
+
 	if (computed_cksum != old_sum) {
 		fprintf(stderr, "This is not a valid IP packet, the checksum does not match.\n");
 		return;
@@ -165,6 +165,29 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		}
 	}
 	else {
+		if (iphdr->ip_ttl <= 1) {
+			/* error, ttl has expired
+			 send error message
+			 */
+			return;
+		}
+		iphdr->ip_ttl--;
+		iphdr->ip_sum = 0;
+		iphdr->ip_sum = cksum((void*)iphdr, len);
+
+		struct sr_rt * route = sr_route_prefix_match(sr, iphdr->ip_dst);
+		if (route != NULL) {
+			uint8_t * fwd = malloc(len + sizeof(sr_ethernet_hdr_t));
+			memcpy(fwd + sizeof(sr_ethernet_hdr_t), iphdr, len);
+			/* send the packet */
+			free(fwd);
+		}
+		else {
+			/* no route found
+			 * send network unreachable */
+		}
+
+
 		/* forward the packet
 		 decrement ttl by 1
 		 recompute checksum
