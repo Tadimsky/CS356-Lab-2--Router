@@ -377,7 +377,7 @@ int sr_util_mask_length(in_addr_t mask) {
 	return size;
 }
 
-void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type) {
+void sr_wrap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type) {
 	struct sr_arpentry *arp_entry;
 	struct sr_arpreq *arp_req;
 	struct sr_ethernet_hdr eth_hdr;

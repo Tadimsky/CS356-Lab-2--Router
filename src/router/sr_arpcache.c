@@ -39,7 +39,6 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 
 }
 
-
 void sr_arpreq_handle(struct sr_instance * sr, struct sr_arpreq * req) {
 	if (difftime(time(0), req->sent > 1)) {
 
@@ -72,7 +71,7 @@ void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
 	arp_header.ar_sip = interface -> ip;
 	arp_header.ar_tip = req -> ip;
 
-	sr_encap_and_send_pkt(sr, (uint8_t *)&arp_header, sizeof(struct sr_arp_hdr), req->ip, 0, ethertype_arp);
+	sr_wrap_and_send_pkt(sr, (uint8_t *)&arp_header, sizeof(struct sr_arp_hdr), req->ip, 0, ethertype_arp);
 }
 
 void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
@@ -81,7 +80,7 @@ void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
 
 	while (current != NULL) {
 		ip_header = (struct sr_ip_hdr *) current->buf;
-		sr_encap_and_send_pkt(sr, current->buf, current->len, ip_header->ip_dst, 1, ethertype_ip);
+		sr_wrap_and_send_pkt(sr, current->buf, current->len, ip_header->ip_dst, 1, ethertype_ip);
 		current = current->next;
 	}
 }
