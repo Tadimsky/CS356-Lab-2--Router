@@ -127,16 +127,39 @@ void sr_handlepacket(struct sr_instance* sr,
  * @param len is the length of the ARP packet
  */
 void sr_handle_arp_packet(struct sr_instance* sr,
-		uint8_t * packet/* lent */,
-		unsigned int len,
-		char* interface) {
+                          uint8_t * packet/* lent */,
+                          unsigned int len,
+                          char* interface) {
 	if (len < sizeof(sr_arp_hdr_t)) {
 		fprintf(stderr, "This is not a valid ARP packet, length is too short.\n");
 		return;
 	}
-	sr_arp_hdr_t * arp = (sr_arp_hdr_t*)packet;
-
-
+	
+	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+	
+	if(arphdr->ar_op == 1){ // it's a request
+		arphdr->ar_dha = arphdr->ar_sha;
+		uint32_t target = arphdr->dip;
+		arphdr->ar_dip = arphdr->ar_sip;
+		arphdr->ar_sip = target;
+        
+		struct sr_if* interface = sr->if_list;
+		while(interface != NULL){
+			
+			if(interface->ip == target){
+				arphdr->sha = interface->addr;
+				break;
+			}
+            
+			interface++;
+		}
+	}
+	else if (arphdr->ar_op == 2){ // it's a reply
+		
+		sr_arpcache_insert(sr->cache, arphdr->sha, arphdr->sip);
+		
+	}
+    
 }
 
 /**
