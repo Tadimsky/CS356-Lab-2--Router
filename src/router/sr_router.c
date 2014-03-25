@@ -11,6 +11,7 @@
  *
  **********************************************************************/
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdbool.h>
@@ -22,6 +23,20 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
+
+void sr_handle_arp_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len,	char* interface);
+void sr_handle_ip_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len, char* interface);
+void sr_handle_icmp_packet(struct sr_instance* sr,
+		uint8_t * packet/* lent */,
+		unsigned int len,
+		char* interface);
+bool sr_packet_is_final_destination(struct sr_instance* sr, sr_ip_hdr_t * header);
+bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header);
+struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr);
+int sr_util_mask_length(in_addr_t mask);
+void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type);
+
+
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -29,7 +44,6 @@
  * Initialize the routing subsystem
  *
  *---------------------------------------------------------------------*/
-
 void sr_init(struct sr_instance* sr)
 {
 	/* REQUIRES */
@@ -79,7 +93,7 @@ void sr_handlepacket(struct sr_instance* sr,
 	printf("*** -> Received packet of length %d \n",len);
 	/* Ethernet */
 
-	// check if packet is valid ethernet
+	/* check if packet is valid ethernet */
 	uint32_t minsize = sizeof(sr_ethernet_hdr_t);
 	if (len < minsize) {
 		fprintf(stderr, "This is not a valid ETHERNET packet, length is too short.");
@@ -142,15 +156,16 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			sr_handle_icmp_packet(sr, packet, len, interface);
 		}
 		else {
-			// we are the final destination
-			// send a port unreachable message to the sender
+			/* we are the final destination */
+			/* send a port unreachable message to the sender */
 		}
 	}
 	else {
-		// forward the packet
-		// decrement ttl by 1
-		// recompute checksum
-		// etc
+		/* forward the packet
+		 decrement ttl by 1
+		 recompute checksum
+		 etc
+		 */
 	}
 
 }
@@ -166,7 +181,7 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 	}
 	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
-	// implement this
+	/* implement this */
 }
 
 /**
@@ -206,8 +221,8 @@ struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr) 
 	struct sr_rt * best_match;
 
 	while (current != NULL) {
-		if ((current->mask.s_addr & addr) == (ntohl(current->dest.s_addr) & current->mask.s_addr)) {
-			int size = sr_util_mask_length(current->mask);
+		if ((current->mask.s_addr & *addr) == (ntohl(current->dest.s_addr) & current->mask.s_addr)) {
+			int size = sr_util_mask_length(current->mask.s_addr);
 			if (size > max_len) {
 				max_len = size;
 				best_match = current;
@@ -222,7 +237,7 @@ struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr) 
 
 int sr_util_mask_length(in_addr_t mask) {
 	int size = 0;
-	// make it 10...0
+	/* make it 10...0 */
 	int checker = 1 << 31;
 
 	while ((checker != 0) && ((checker & mask) != 0)) {
