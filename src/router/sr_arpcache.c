@@ -79,6 +79,7 @@ void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
 
 	interface = sr_get_interface(sr, req -> packets -> iface);
 
+	int i;
 	arp_header.ar_hrd = htons(arp_hrd_ethernet);
 	arp_header.ar_pro = htons(arp_pro_ip);
 	arp_header.ar_hln = htons(ETHER_ADDR_LEN);
