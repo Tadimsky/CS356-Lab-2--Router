@@ -23,6 +23,19 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
+/* ICMP Echo Reply Type */
+#define ICMP_ECHO_REPLY_TYPE 0
+/* ICMP Echo Request Type */
+#define ICMP_ECHO_REQUEST_TYPE 8
+
+/* ICMP Type 3 Messages */
+#define ICMP_DESTINATION_NET_UNREACHABLE_CODE 0
+#define ICMP_DESTINATION_HOST_UNREACHABLE_CODE 1
+#define ICMP_PORT_UNREACHABLE_CODE 3
+
+/* ICMP TTL Type */
+#define ICMP_TIME_EXCEEDED_TYPE 11
+#define ICMP_TIME_EXCEEDED_CODE 0
 
 void sr_handle_arp_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len,	char* interface);
 void sr_handle_ip_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len, char* interface);
@@ -203,6 +216,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			/* error, ttl has expired
 			 send error message
 			 */
+			sr_icmp_send_ttl_expired(sr, iphdr, len, interface);
 			return;
 		}
 		iphdr->ip_ttl--;
@@ -219,6 +233,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		else {
 			/* no route found
 			 * send network unreachable */
+			sr_ic
 		}
 
 
@@ -428,7 +443,7 @@ void sr_icmp_send_ttl_expired(struct sr_instance * sr, sr_ip_hdr_t * packet, uin
 
 }
 
-void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
+void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t icmp_code) {
 
 }
 
