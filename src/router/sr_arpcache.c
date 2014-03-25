@@ -35,22 +35,6 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 		current = next;
 		if (current) next = current->next;
 
-		/*
-		if (current->times_sent < MAX_SEND_ARP) {
-			// resend the ARP packet
-			current->times_sent++;
-		}
-		else {
-			// need to drop arp request
-			// send destination host unreachable to senders of packets that are waiting on this request
-			struct sr_packet * packets = current->packets;
-			while (packets != NULL) {
-				// send ICMP host unreachable to sender
-			}
-			sr_arpreq_destroy(sr->cache, current);
-		}
-		current = current->next;
-		*/
 	}
 
 }
@@ -79,9 +63,8 @@ void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
 
 	interface = sr_get_interface(sr, req -> packets -> iface);
 
-	int i;
 	arp_header.ar_hrd = htons(arp_hrd_ethernet);
-	arp_header.ar_pro = htons(arp_pro_ip);
+	arp_header.ar_pro = htons(arp_header.ar_pro);
 	arp_header.ar_hln = htons(ETHER_ADDR_LEN);
 	arp_header.ar_pln = sizeof(uint32_t);
 	arp_header.ar_op = htons(arp_op_request);
