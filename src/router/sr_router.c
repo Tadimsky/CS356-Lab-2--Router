@@ -22,6 +22,8 @@
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
 #include "sr_utils.h"
+/* IP Field defaults */
+#define IP_DEFAULT_TTL 15
 
 /* ICMP Echo Reply Type */
 #define ICMP_ECHO_REPLY_TYPE 0
@@ -261,13 +263,15 @@ uint8_t * create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, ui
 }
 
 /*
- Create an IP packet
+ Create an IP packet given the memory where it should be placed.  
+ Calling function will need to have created an ethernet frame. 
+ destination_ptr correlates to the pointer for the ethernet header + sizeof ethernet header.
  TODO: not sure what form payload_size should take
  TODO: do these values need nthos?
  TODO: add the actual payload to pkt
  */
-sr_ip_hdr_t * create_ip_packet(uint8_t* payload, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
-    sr_ip_hdr_t * pkt = malloc(sizeof(sr_ip_hdr_t));
+sr_ip_hdr_t * create_ip_packet(uint8_t* destination_ptr, uint8_t* payload, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
+    sr_ip_hdr_t * pkt = (sr_ip_hdr_t *) payload;
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
      with 4 for relevant fields
      TODO: not sure about tos, id, frag, ttl
@@ -277,12 +281,12 @@ sr_ip_hdr_t * create_ip_packet(uint8_t* payload, uint8_t ip_proto, int payload_s
     pkt->ip_len = (uint16_t) (sizeof(sr_ip_hdr_t) + payload_size);
     pkt->ip_id = 0;
     pkt->ip_off = 0;
-    pkt->ip_ttl = 15;
+    pkt->ip_ttl = IP_DEFAULT_TTL;
     pkt->ip_p = ip_proto;
     pkt->ip_sum = 0;
     pkt->ip_src =ip_src;
     pkt->ip_dst = ip_dst;
-    pkt->ip_sum = cksum(((void *) pkt);
+    pkt->ip_sum = cksum(((void *) pkt), payload_size);
     return pkt;
 }
 
