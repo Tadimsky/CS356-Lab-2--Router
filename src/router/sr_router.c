@@ -142,10 +142,9 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			sr_handle_icmp_packet(sr, packet, len, interface);
 		}
 		else {
-
+			// we are the final destination
+			// send a port unreachable message to the sender
 		}
-		// we are the final destination
-		// send a port unreachable message to the sender
 	}
 	else {
 		// forward the packet
@@ -196,5 +195,40 @@ bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header) {
 		}
 	}
 	return false;
+}
+
+/**
+ * Performs longest prefix match on IP address and the routes for the router.
+ */
+struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr) {
+	struct sr_rt * current = sr->routing_table;
+	int max_len = -1;
+	struct sr_rt * best_match;
+
+	while (current != NULL) {
+		if ((current->mask.s_addr & addr) == (ntohl(current->dest.s_addr) & current->mask.s_addr)) {
+			int size = sr_util_mask_length(current->mask);
+			if (size > max_len) {
+				max_len = size;
+				best_match = current;
+			}
+		}
+		current = current->next;
+	}
+	return best_match;
+
+
+}
+
+int sr_util_mask_length(in_addr_t mask) {
+	int size = 0;
+	// make it 10...0
+	int checker = 1 << 31;
+
+	while ((checker != 0) && ((checker & mask) != 0)) {
+		size++;
+		checker = checker >> 1;
+	}
+	return size;
 }
 
