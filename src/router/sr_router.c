@@ -121,6 +121,11 @@ void sr_handlepacket(struct sr_instance* sr,
 }/* end sr_ForwardPacket */
 
 
+/**
+ * Handles an ARP packet that is received by the router.
+ * @param packet pointer points to the beginning of the ARP header
+ * @param len is the length of the ARP packet
+ */
 void sr_handle_arp_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
@@ -134,6 +139,11 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 
 }
 
+/**
+ * Handles an IP packet that is received by the router.
+ * @param packet pointer points to the beginning of the IP header
+ * @param len is the length of the IP packet
+ */
 void sr_handle_ip_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
@@ -224,6 +234,11 @@ sr_ip_hdr_t * create_ip_packet(uint8_t* payload, uint8_t ip_proto, int payload_s
     return pkt;
 }
 
+/**
+ * Handles an ICMP packet that is received by the router.
+ * @param packet pointer points to the beginning of the ICMP header
+ * @param len is the length of the ICMP packet
+ */
 void sr_handle_icmp_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
