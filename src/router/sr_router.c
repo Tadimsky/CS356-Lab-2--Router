@@ -401,3 +401,16 @@ void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int
 	}
 }
 
+void sr_icmp_send_ttl_expired(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
+
+}
+
+void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
+
+}
+
+void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
+
+}
+
+
