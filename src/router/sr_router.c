@@ -80,6 +80,10 @@ void sr_init(struct sr_instance* sr)
  *
  *---------------------------------------------------------------------*/
 
+
+/*
+ TODO: add check for TTL before sending down to sub methods
+*/
 void sr_handlepacket(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
@@ -170,6 +174,32 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 
 }
 
+/*
+ Create an IP packet
+ TODO: not sure what form payload_size should take
+ TODO: do these values need nthos?
+ TODO: add the actual payload to pkt
+ */
+sr_ip_hdr_t * create_ip_packet(uint8_t* payload, uint8_t ip_proto, int payload_size, uint_32_t ip_src, uint_32_t ip_dst){
+    sr_ip_hdr_t * pkt = malloc(sizeof(sr_ip_hdr_t));
+    /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
+     with 4 for relevant fields
+     TODO: not sure about tos, id, frag, ttl
+     Need to find method for this address
+    */
+    pkt->ip_tos = 0;
+    pkt->ip_len = (uint16_t) (sizeof(sr_ip_hdr_t) + payload_size);
+    pkt->ip_id = 0;
+    pkt->ip_off = 0;
+    pkt->ip_ttl = 15;
+    pkt->ip_p = ip_proto;
+    pkt->ip_sum = 0;
+    pkt->ip_src =ip_src;
+    pkt->ip_dst = ip_dst;
+    pkt->ip_sum = cksum(((void *) pkt);
+    return pkt;
+}
+
 void sr_handle_icmp_packet(struct sr_instance* sr,
 		uint8_t * packet/* lent */,
 		unsigned int len,
@@ -182,6 +212,36 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
 	/* implement this */
+    uint8_t type = icmp_hdr->icmp_type;
+    /*if this is an echo request*/
+    if (type == 8){
+        /*uint8_t code = icmp_hdr->icmp_code;*/
+        sr_ip_hdr_t * sr_ip_hdr = (sr_ip_hdr_t)(packet + sizeof(sr_ethernet_hdr_t));
+        uint32_t src_ip = sr_ip_hdr->ip_src;
+        /*TODO: not sure where want the malloc to take place, 
+        especially if need to create an ip Packet */
+        sr_icmp_hdr_t * echo_reply = malloc(sizeof(src_icmp_hdr_t));
+        echo_reply->icmp_type = 0;
+        echo_reply->icmp_code = 0;
+        /*place holder 0 for consistent checksum calculations*/
+        echo_reply->icmp_sum = 0;
+        /* find actual method call for this address*/
+        uint_32_t this_ip = 0;
+        
+        echo_reply->icmp_sum = cksum((void *) echo_reply, (int) sizeof(sr_icmp_hdr_t));
+        uint8_t * buf = create_ip_packet(echo_reply, ip_protocol_icmp, ((unsigned int) sizeof(sr_icmp_hdr_t), this_ip, uint_32_t src_ip);
+                                         
+        /*TODO: find out if have to wrap this in an IP packet first.
+        question is does sr_send_packet take any payload, or an IP packet
+        Also find out call to get iface
+        */
+                                         
+        const char* iface = "this is not right";
+                                         
+        /*sr_send_packet expects a regualr int*/
+        int bufsize = (int) (((sr_ip_hdr_t) buf)->ip_len);
+        sr_send_packet(sr, buf, bufsize, iface);
+    }
 }
 
 /**
