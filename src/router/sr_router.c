@@ -23,6 +23,19 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
+/* ICMP Echo Reply Type */
+#define ICMP_ECHO_REPLY_TYPE 0
+/* ICMP Echo Request Type */
+#define ICMP_ECHO_REQUEST_TYPE 8
+
+/* ICMP Type 3 Messages */
+#define ICMP_DESTINATION_NET_UNREACHABLE_CODE 0
+#define ICMP_DESTINATION_HOST_UNREACHABLE_CODE 1
+#define ICMP_PORT_UNREACHABLE_CODE 3
+
+/* ICMP TTL Type */
+#define ICMP_TIME_EXCEEDED_TYPE 11
+#define ICMP_TIME_EXCEEDED_CODE 0
 
 void sr_handle_arp_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len,	char* interface);
 void sr_handle_ip_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len, char* interface);
@@ -127,16 +140,39 @@ void sr_handlepacket(struct sr_instance* sr,
  * @param len is the length of the ARP packet
  */
 void sr_handle_arp_packet(struct sr_instance* sr,
-		uint8_t * packet/* lent */,
-		unsigned int len,
-		char* interface) {
+                          uint8_t * packet/* lent */,
+                          unsigned int len,
+                          char* interface) {
 	if (len < sizeof(sr_arp_hdr_t)) {
 		fprintf(stderr, "This is not a valid ARP packet, length is too short.\n");
 		return;
 	}
-	sr_arp_hdr_t * arp = (sr_arp_hdr_t*)packet;
-
-
+	
+	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+	
+	if(arphdr->ar_op == 1){ // it's a request
+		arphdr->ar_dha = arphdr->ar_sha;
+		uint32_t target = arphdr->dip;
+		arphdr->ar_dip = arphdr->ar_sip;
+		arphdr->ar_sip = target;
+        
+		struct sr_if* interface = sr->if_list;
+		while(interface != NULL){
+			
+			if(interface->ip == target){
+				arphdr->sha = interface->addr;
+				break;
+			}
+            
+			interface++;
+		}
+	}
+	else if (arphdr->ar_op == 2){ // it's a reply
+		
+		sr_arpcache_insert(sr->cache, arphdr->sha, arphdr->sip);
+		
+	}
+    
 }
 
 /**
@@ -180,6 +216,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			/* error, ttl has expired
 			 send error message
 			 */
+			sr_icmp_send_ttl_expired(sr, iphdr, len, interface);
 			return;
 		}
 		iphdr->ip_ttl--;
@@ -196,6 +233,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		else {
 			/* no route found
 			 * send network unreachable */
+			sr_ic
 		}
 
 
@@ -400,4 +438,17 @@ void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int
 		free(eth_pkt);
 	}
 }
+
+void sr_icmp_send_ttl_expired(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
+
+}
+
+void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t icmp_code) {
+
+}
+
+void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
+
+}
+
 
