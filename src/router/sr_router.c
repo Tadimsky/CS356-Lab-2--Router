@@ -209,6 +209,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		else {
 			/* we are the final destination */
 			/* send a port unreachable message to the sender */
+			sr_icmp_send_type_3(sr, iphdr, ICMP_PORT_UNREACHABLE_CODE);
 		}
 	}
 	else {
@@ -233,15 +234,8 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		else {
 			/* no route found
 			 * send network unreachable */
-			sr_ic
+			sr_icmp_send_type_3(sr,iphdr, ICMP_DESTINATION_NET_UNREACHABLE_CODE);
 		}
-
-
-		/* forward the packet
-		 decrement ttl by 1
-		 recompute checksum
-		 etc
-		 */
 	}
 
 }
@@ -290,7 +284,7 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 	/* implement this */
     uint8_t type = icmp_hdr->icmp_type;
     /*if this is an echo request*/
-    if (type == 8){
+    if (type == ICMP_ECHO_REQUEST_TYPE ){
         /*uint8_t code = icmp_hdr->icmp_code;*/
         sr_ip_hdr_t * sr_ip_hdr = (sr_ip_hdr_t)(packet + sizeof(sr_ethernet_hdr_t));
         uint32_t src_ip = sr_ip_hdr->ip_src;
