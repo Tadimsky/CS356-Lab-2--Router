@@ -453,6 +453,19 @@ void sr_wrap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int 
 	}
 }
 
+void sr_icmp_send(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface, uint8_t type) {
+
+	if (type == TTL_EXPIRED) {
+
+	}
+	else if (type == TYPE_THREE) {
+
+	}
+	else if (type == ECHO_REPLY) {
+
+	}
+}
+
 void sr_icmp_send_ttl_expired(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
 
 }
