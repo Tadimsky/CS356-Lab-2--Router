@@ -301,24 +301,19 @@ sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
     return icmp_hdr;
     
 }
-
-void sr_icmp_send(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code) {
-    
-}
-
-void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, char interface) {
-    int eth_payload_size = sizeof(sr_icmp_hdr_t) + sizeof(sr_ip_hdr_t);
+/*TODO: maybe move scraping info from IP packet up a level or two*/
+void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
+    /* Get source and destination MACs */
     uint8_t ether_shost;
     memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
-    
     uint8_t ether_dhost;
     memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
     
+    /* Icmp is always IP */
     uint16_t ether_type = ethertype_ip;
     
-    int payload_size = sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
-    
-    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(payload_size);
+    /* Allocate memory for Ethernet frame and fill it with an Eth header */
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));
     memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
     
     void * ptr = (void *) frame;
@@ -328,16 +323,15 @@ void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, char
     uint32_t ip_dst;
     /*TODO: add logic for getting src and host ips*/
     
+    /* Move IP header right after the Ethernet Header*/
     memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
     
+    /* Move ICMP header right after IP header */
     ptr += sizeof(sr_ip_hdr_t);
-    
     memcpy(ptr,create_icmp_header(ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE), sizeof(sr_icmp_hdr_t));
     
-    const char * iface;
-    /*TODO: add logic for getting iface*/
-    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), iface );
-    
+    /* Send the ethernet frame to the desired interface! */
+    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
 }
 
 /**
@@ -362,7 +356,7 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
     /*if this is an echo request*/
     switch (type) {
 		case ICMP_ECHO_REQUEST_TYPE:
-			sr_icmp_send_echo_reply(sr, ip_hdr, *interface);
+			sr_icmp_send_message(sr, ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE, ip_hdr, interface);
 			break;
          /* TODO: not sure what cases need handling*/
 		case ICMP_TIME_EXCEEDED_TYPE:
