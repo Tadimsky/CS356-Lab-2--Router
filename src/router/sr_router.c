@@ -36,9 +36,12 @@
 #define ICMP_ECHO_REQUEST_TYPE 8
 
 /* ICMP Type 3 Messages */
+#define ICMP_T3_TYPE 3
 #define ICMP_DESTINATION_NET_UNREACHABLE_CODE 0
 #define ICMP_DESTINATION_HOST_UNREACHABLE_CODE 1
 #define ICMP_PORT_UNREACHABLE_CODE 3
+#define ICMP_NEXT_MTU 0
+#define ICMP_UNUSED 0
 
 /* ICMP TTL Type */
 #define ICMP_TIME_EXCEEDED_TYPE 11
@@ -191,6 +194,24 @@ sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
     return icmp_hdr;
     
 }
+
+sr_icmp_t3_hdr_t * create_icmp_t3_header(uint8_t icmp_code, uint8_t* data){
+    sr_icmp_t3_hdr_t header;
+    sr_icmp_t3_hdr_t * icmp_t3_hdr = &header;
+    
+    icmp_t3_hdr->icmp_type = ICMP_T3_TYPE;
+    icmp_t3_hdr->icmp_code = icmp_code;
+    icmp_t3_hdr->next_mtu = ICMP_NEXT_MTU;
+    icmp_t3_hdr->icmp_sum = 0;
+    icmp_t3_hdr->unused = ICMP_UNUSED;
+
+    memcpy((icmp_t3_hdr->data), data, sizeof(uint8_t) * ICMP_DATA_SIZE);
+    
+    icmp_t3_hdr->icmp_sum = cksum(icmp_t3_hdr, sizeof(sr_icmp_t3_hdr_t));
+    
+    return icmp_t3_hdr;
+}
+
 /*TODO: maybe move scraping info from IP packet up a level or two*/
 void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
     /* Get source and destination MACs */
@@ -224,6 +245,41 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
     /* Don't forget to free no longer needed memory*/
     free(frame);
+}
+void sr_icmp_send_t3(struct sr_instance * sr, uint8_t icmp_code, uint8_t * data, sr_ip_hdr_t * packet, char* interface){
+    /* Get source and destination MACs */
+    uint8_t ether_shost;
+    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    uint8_t ether_dhost;
+    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
+    
+    /* Icmp is always IP */
+    uint16_t ether_type = ethertype_ip;
+    
+    /* Allocate memory for Ethernet frame and fill it with an Eth header */
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
+    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
+    
+    void * ptr = (void *) frame;
+    ptr += sizeof(sr_ethernet_hdr_t);
+    
+    /* TODO:Do we need to use sr_rt at all? */
+    uint32_t ip_src = packet->ip_dst;
+    uint32_t ip_dst= packet->ip_src;
+    
+    /* Place IP header right after the Ethernet Header*/
+    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
+    
+    /* Place ICMPT3 header right after IP header */
+    ptr += sizeof(sr_ip_hdr_t);
+    memcpy(ptr,create_icmp_t3_header(icmp_code, data), sizeof(sr_icmp_t3_hdr_t));
+    
+    /* Send the ethernet frame to the desired interface! */
+    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), interface);
+    /* Don't forget to free no longer needed memory*/
+    free(frame);
+    
+    
 }
 
 void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t icmp_code) {
