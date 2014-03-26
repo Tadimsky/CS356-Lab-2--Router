@@ -319,19 +319,21 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     void * ptr = (void *) frame;
     ptr += sizeof(sr_ethernet_hdr_t);
     
-    uint32_t ip_src;
-    uint32_t ip_dst;
-    /*TODO: add logic for getting src and host ips*/
+    /* TODO:Do we need to use sr_rt at all? */
+    uint32_t ip_src = packet->ip_dst;
+    uint32_t ip_dst= packet->ip_src;
     
-    /* Move IP header right after the Ethernet Header*/
+    /* Place IP header right after the Ethernet Header*/
     memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
     
-    /* Move ICMP header right after IP header */
+    /* Place ICMP header right after IP header */
     ptr += sizeof(sr_ip_hdr_t);
-    memcpy(ptr,create_icmp_header(ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE), sizeof(sr_icmp_hdr_t));
+    memcpy(ptr,create_icmp_header(icmp_type, icmp_code), sizeof(sr_icmp_hdr_t));
     
     /* Send the ethernet frame to the desired interface! */
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
+    /* Don't forget to free no longer needed memory*/
+    free(frame);
 }
 
 /**
