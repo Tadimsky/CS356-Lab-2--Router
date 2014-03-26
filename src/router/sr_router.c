@@ -502,9 +502,8 @@ void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t 
 	memcpy(icmp_header->data, packet, ICMP_DATA_SIZE);
 	icmp_header->icmp_sum = cksum(icmp_header, sizeof(sr_icmp_t3_hdr_t));
 	/* send the packet */
+
 	free(icmp_packet);
-
-
 }
 
 void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
