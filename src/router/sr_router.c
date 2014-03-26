@@ -24,6 +24,9 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 /* IP Field defaults */
+#define IP_DEFAULT_TOS 0
+#define IP_DEFAULT_ID 0
+#define IP_DEFAULT_OFF 0
 #define IP_DEFAULT_TTL 15
 
 /* ICMP Echo Reply Type */
@@ -52,7 +55,6 @@ bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header);
 struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr);
 int sr_util_mask_length(in_addr_t mask);
 void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type);
-
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -153,12 +155,8 @@ sr_ethernet_hdr_t * create_ethernet_header (uint8_t* ether_dhost, uint8_t* ether
 }
 
 /*
- Create an IP packet given the memory where it should be placed.
- Calling function will need to have created an ethernet frame.
- destination_ptr correlates to the pointer for the ethernet header + sizeof ethernet header.
- TODO: not sure what form payload_size should take
+ Create an IP header.
  TODO: do these values need nthos?
- TODO: add the actual payload to pkt
  currently creates stack memory allotment for this then sends it off. shoulddd work.
  */
 sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
@@ -169,12 +167,11 @@ sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_s
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
      with 4 for relevant fields
      TODO: not sure about tos, id, frag, ttl
-     Need to find method for this address
      */
-    pkt->ip_tos = 0;
+    pkt->ip_tos = IP_DEFAULT_TOS;
     pkt->ip_len = (uint16_t) (sizeof(sr_ip_hdr_t) + payload_size);
-    pkt->ip_id = 0;
-    pkt->ip_off = 0;
+    pkt->ip_id = IP_DEFAULT_ID;
+    pkt->ip_off = IP_DEFAULT_OFF;
     pkt->ip_ttl = IP_DEFAULT_TTL;
     pkt->ip_p = ip_proto;
     pkt->ip_sum = 0;
