@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -23,10 +24,14 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 /* IP Field defaults */
+#define IP_DEFAULT_TOS 0
+#define IP_DEFAULT_ID 0
+#define IP_DEFAULT_OFF 0
 #define IP_DEFAULT_TTL 15
 
 /* ICMP Echo Reply Type */
 #define ICMP_ECHO_REPLY_TYPE 0
+#define ICMP_ECHO_REPLY_CODE 0
 /* ICMP Echo Request Type */
 #define ICMP_ECHO_REQUEST_TYPE 8
 
@@ -50,7 +55,6 @@ bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header);
 struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr);
 int sr_util_mask_length(in_addr_t mask);
 void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type);
-
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -136,6 +140,126 @@ void sr_handlepacket(struct sr_instance* sr,
 }/* end sr_ForwardPacket */
 
 
+
+/* Create an ethernet frame only.
+ Has NO logic for handling data greater than ethernet's MTU
+ destination ethernet address, source ethernet address, packet type ID
+ */
+sr_ethernet_hdr_t * create_ethernet_header (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
+    sr_ethernet_hdr_t hdr;
+    sr_ethernet_hdr_t * eth_hdr = & hdr;
+    memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    eth_hdr->ether_type = ether_type;
+    return eth_hdr;
+}
+
+/*
+ Create an IP header.
+ TODO: do these values need nthos?
+ currently creates stack memory allotment for this then sends it off. shoulddd work.
+ */
+sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
+    
+    /*Doing it this weird way so its easy to switch to using pointers to a previously malloced memory space incase this doesnt work*/
+    sr_ip_hdr_t header;
+    sr_ip_hdr_t * pkt = &header;
+    /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
+     with 4 for relevant fields
+     TODO: not sure about tos, id, frag, ttl
+     */
+    pkt->ip_tos = IP_DEFAULT_TOS;
+    pkt->ip_len = (uint16_t) (sizeof(sr_ip_hdr_t) + payload_size);
+    pkt->ip_id = IP_DEFAULT_ID;
+    pkt->ip_off = IP_DEFAULT_OFF;
+    pkt->ip_ttl = IP_DEFAULT_TTL;
+    pkt->ip_p = ip_proto;
+    pkt->ip_sum = 0;
+    pkt->ip_src =ip_src;
+    pkt->ip_dst = ip_dst;
+    pkt->ip_sum = cksum(((void *) pkt), payload_size);
+    return pkt;
+}
+/* Create an ICMP header. Does calculating of checksum for you */
+sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
+    sr_icmp_hdr_t hdr;
+    sr_icmp_hdr_t * icmp_hdr = & hdr;
+    icmp_hdr->icmp_type = icmp_type;
+    icmp_hdr->icmp_code = icmp_code;
+    icmp_hdr->icmp_sum =0 ;
+    icmp_hdr->icmp_sum = cksum((void *) icmp_hdr, sizeof(sr_icmp_hdr_t));
+    return icmp_hdr;
+    
+}
+/*TODO: maybe move scraping info from IP packet up a level or two*/
+void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
+    /* Get source and destination MACs */
+    uint8_t ether_shost;
+    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    uint8_t ether_dhost;
+    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
+    
+    /* Icmp is always IP */
+    uint16_t ether_type = ethertype_ip;
+    
+    /* Allocate memory for Ethernet frame and fill it with an Eth header */
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));
+    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
+    
+    void * ptr = (void *) frame;
+    ptr += sizeof(sr_ethernet_hdr_t);
+    
+    /* TODO:Do we need to use sr_rt at all? */
+    uint32_t ip_src = packet->ip_dst;
+    uint32_t ip_dst= packet->ip_src;
+    
+    /* Place IP header right after the Ethernet Header*/
+    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
+    
+    /* Place ICMP header right after IP header */
+    ptr += sizeof(sr_ip_hdr_t);
+    memcpy(ptr,create_icmp_header(icmp_type, icmp_code), sizeof(sr_icmp_hdr_t));
+    
+    /* Send the ethernet frame to the desired interface! */
+    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
+    /* Don't forget to free no longer needed memory*/
+    free(frame);
+}
+
+void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t icmp_code) {
+	uint8_t * icmp_packet = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
+    
+	sr_ip_hdr_t * ip_header = (sr_ip_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t));
+	/* setup ip header */
+    
+    
+	/* get route for the packet to send back to sender */
+	struct sr_rt * route = sr_route_prefix_match(sr, &packet->ip_src);
+	if (route == NULL) {
+		/* error */
+		return;
+	}
+	/* get interface that corresponds to the route */
+	struct sr_if * iface = sr_get_interface(sr, route->interface);
+	if (iface == NULL) {
+		/* error */
+		return;
+	}
+    
+	sr_icmp_t3_hdr_t * icmp_header = (sr_icmp_t3_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+	icmp_header->icmp_type = 3;
+	icmp_header->icmp_code = icmp_code;
+	icmp_header->icmp_sum = 0;
+	/* data is first bit of original date */
+	memcpy(icmp_header->data, packet, ICMP_DATA_SIZE);
+	icmp_header->icmp_sum = cksum(icmp_header, sizeof(sr_icmp_t3_hdr_t));
+	/* send the packet */
+	free(icmp_packet);
+    
+    
+}
+
+
 /**
  * Handles an ARP packet that is received by the router.
  * @param packet pointer points to the beginning of the ARP header
@@ -208,7 +332,8 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 	if (sr_packet_is_final_destination(sr, iphdr)) {
 		uint8_t ip_proto = ip_protocol(packet);
 		if (ip_proto == ip_protocol_icmp) {
-			sr_handle_icmp_packet(sr, packet + sizeof(sr_ip_hdr_t), len - sizeof(sr_ip_hdr_t), interface);
+			/*NOTE: changed from sr_handle_icmp_packet(sr, packet + sizeof(sr_ip_hdr_t), len - sizeof(sr_ip_hdr_t), interface);*/
+            sr_handle_icmp_packet(sr, packet , len , interface);
 		}
 		else {
 			/* we are the final destination */
@@ -221,14 +346,16 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			/* error, ttl has expired
 			 send error message
 			 */
-			sr_icmp_send_ttl_expired(sr, iphdr, len, interface);
+            
+			/*sr_icmp_send_ttl_expired(sr, iphdr, len, interface);*/
+            sr_icmp_send_message(sr, ICMP_TIME_EXCEEDED_TYPE, ICMP_TIME_EXCEEDED_CODE, (sr_ip_hdr_t *)packet, interface);
 			return;
 		}
 		iphdr->ip_ttl--;
 		iphdr->ip_sum = 0;
 		iphdr->ip_sum = cksum((void*)iphdr, len);
 
-		struct sr_rt * route = sr_route_prefix_match(sr, iphdr->ip_dst);
+		struct sr_rt * route = sr_route_prefix_match(sr, &iphdr->ip_dst);
 		if (route != NULL) {
 			uint8_t * fwd = malloc(len + sizeof(sr_ethernet_hdr_t));
 			memcpy(fwd + sizeof(sr_ethernet_hdr_t), iphdr, len);
@@ -244,55 +371,10 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 
 }
 
-/* Create an ethernet frame WITH its payload following
-   Has NO logic for handling data greater than ethernet's MTU
-  destination ethernet address, source ethernet address, packet type ID
- */
-uint8_t * create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type, uint8_t * payload, int payload_size) {
-    
-    void * pkt = malloc(sizeof(sr_ethernet_hdr_t) + payload_size);
-    sr_ethernet_hdr_t * eth_hdr = (sr_ethernet_hdr_t *) pkt;
-    memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
-    memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
-    eth_hdr->ether_type = ether_type;
-
-    void * ptr = pkt;
-    ptr += sizeof(sr_ethernet_hdr_t);
-    memcpy(ptr, payload, payload_size);
-    return (uint8_t *) pkt;
-}
-
-/*
- Create an IP packet given the memory where it should be placed.  
- Calling function will need to have created an ethernet frame. 
- destination_ptr correlates to the pointer for the ethernet header + sizeof ethernet header.
- TODO: not sure what form payload_size should take
- TODO: do these values need nthos?
- TODO: add the actual payload to pkt
- */
-sr_ip_hdr_t * create_ip_packet(uint8_t* destination_ptr, uint8_t* payload, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
-    sr_ip_hdr_t * pkt = (sr_ip_hdr_t *) payload;
-    /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
-     with 4 for relevant fields
-     TODO: not sure about tos, id, frag, ttl
-     Need to find method for this address
-    */
-    pkt->ip_tos = 0;
-    pkt->ip_len = (uint16_t) (sizeof(sr_ip_hdr_t) + payload_size);
-    pkt->ip_id = 0;
-    pkt->ip_off = 0;
-    pkt->ip_ttl = IP_DEFAULT_TTL;
-    pkt->ip_p = ip_proto;
-    pkt->ip_sum = 0;
-    pkt->ip_src =ip_src;
-    pkt->ip_dst = ip_dst;
-    pkt->ip_sum = cksum(((void *) pkt), payload_size);
-    return pkt;
-}
 
 /**
  * Handles an ICMP packet that is received by the router.
- * @param packet pointer points to the beginning of the ICMP header
+ * @param packet pointer points to the beginning of the ICMP header NOTE: now points to the IP header
  * @param len is the length of the ICMP packet
  */
 void sr_handle_icmp_packet(struct sr_instance* sr,
@@ -303,39 +385,28 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 		fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
 		return;
 	}
-	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet);
+	sr_ip_hdr_t * ip_hdr = (sr_ip_hdr_t *)(packet);
+    sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t *) ((void *) packet + sizeof(sr_ip_hdr_t));
 
 	/* implement this */
+    
     uint8_t type = icmp_hdr->icmp_type;
     /*if this is an echo request*/
-    if (type == ICMP_ECHO_REQUEST_TYPE ){
-        /*uint8_t code = icmp_hdr->icmp_code;*/
-        sr_ip_hdr_t * sr_ip_hdr = (sr_ip_hdr_t)(packet + sizeof(sr_ethernet_hdr_t));
-        uint32_t src_ip = sr_ip_hdr->ip_src;
-        /*TODO: not sure where want the malloc to take place, 
-        especially if need to create an ip Packet */
-        sr_icmp_hdr_t * echo_reply = malloc(sizeof(sr_icmp_hdr_t));
-        echo_reply->icmp_type = 0;
-        echo_reply->icmp_code = 0;
-        /*place holder 0 for consistent checksum calculations*/
-        echo_reply->icmp_sum = 0;
-        /* find actual method call for this address*/
-        uint32_t this_ip = 0;
-        
-        echo_reply->icmp_sum = cksum((void *) echo_reply, (int) sizeof(sr_icmp_hdr_t));
-        uint8_t * buf = create_ip_packet(echo_reply, ip_protocol_icmp, ((unsigned int) sizeof(sr_icmp_hdr_t), this_ip, uint_32_t src_ip);
-                                         
-        /*TODO: find out if have to wrap this in an IP packet first.
-        question is does sr_send_packet take any payload, or an IP packet
-        Also find out call to get iface
-        */
-                                         
-        const char* iface = "this is not right";
-                                         
-        /*sr_send_packet expects a regualr int*/
-        int bufsize = (int) (((sr_ip_hdr_t) buf)->ip_len);
-        sr_send_packet(sr, buf, bufsize, iface);
+    switch (type) {
+		case ICMP_ECHO_REQUEST_TYPE:
+			sr_icmp_send_message(sr, ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE, ip_hdr, interface);
+			break;
+         /* TODO: not sure what cases need handling*/
+		case ICMP_TIME_EXCEEDED_TYPE:
+			
+			break;
+		default:
+            
+            break;
+            
     }
+                
+
 }
 
 /**
@@ -372,7 +443,7 @@ bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header) {
 struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr) {
 	struct sr_rt * current = sr->routing_table;
 	int max_len = -1;
-	struct sr_rt * best_match;
+	struct sr_rt * best_match = NULL;
 
 	while (current != NULL) {
 		if ((current->mask.s_addr & *addr) == (ntohl(current->dest.s_addr) & current->mask.s_addr)) {
@@ -411,11 +482,13 @@ void sr_wrap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int 
 	unsigned int eth_pkt_len;
     
 	/* Look up shortest prefix match in your routing table. */
+    /* TODO: is this supposed to be sr_route_prefix_match ? */
 	rt = sr_longest_prefix_match(sr, ip_in_addr(dip));
     
 	/* If the entry doesn't exist, send ICMP host unreachable and return if necessary. */
 	if (rt == 0) {
 		if (send_icmp)
+            /*TODO: this could use some tlc too*/
 			sr_send_icmp(sr, packet, len, 3, 0);
 		return;
 	}
@@ -452,11 +525,12 @@ void sr_wrap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int 
 		eth_pkt = malloc(len);
 		memcpy(eth_pkt, packet, len);
 		arp_req = sr_arpcache_queuereq(&sr->cache, rt->gw.s_addr, eth_pkt, len, rt->interface);
+        /* TODO: this routine doesnt exist*/
 		sr_arpreq_handle(sr, arp_req);
 		free(eth_pkt);
 	}
 }
-
+/*
 void sr_icmp_send(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface, uint8_t type) {
 
 	if (type == TTL_EXPIRED) {
@@ -469,6 +543,7 @@ void sr_icmp_send(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, c
 
 	}
 }
+ */
 
 void sr_icmp_send_ttl_expired(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
 
@@ -509,5 +584,3 @@ void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t 
 void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
 
 }
-
-
