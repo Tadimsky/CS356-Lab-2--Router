@@ -27,6 +27,7 @@
 
 /* ICMP Echo Reply Type */
 #define ICMP_ECHO_REPLY_TYPE 0
+#define ICMP_ECHO_REPLY_CODE 0
 /* ICMP Echo Request Type */
 #define ICMP_ECHO_REQUEST_TYPE 8
 
@@ -244,22 +245,17 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 
 }
 
-/* Create an ethernet frame WITH its payload following
+/* Create an ethernet frame only.
    Has NO logic for handling data greater than ethernet's MTU
   destination ethernet address, source ethernet address, packet type ID
  */
-uint8_t * create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type, uint8_t * payload, int payload_size) {
-    
-    void * pkt = malloc(sizeof(sr_ethernet_hdr_t) + payload_size);
-    sr_ethernet_hdr_t * eth_hdr = (sr_ethernet_hdr_t *) pkt;
+sr_ethernet_hdr_t * create_ethernet_header (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
+    sr_ethernet_hdr_t hdr;
+    sr_ethernet_hdr_t * eth_hdr = & hdr;
     memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     eth_hdr->ether_type = ether_type;
-
-    void * ptr = pkt;
-    ptr += sizeof(sr_ethernet_hdr_t);
-    memcpy(ptr, payload, payload_size);
-    return (uint8_t *) pkt;
+    return eth_hdr;
 }
 
 /*
@@ -269,9 +265,13 @@ uint8_t * create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, ui
  TODO: not sure what form payload_size should take
  TODO: do these values need nthos?
  TODO: add the actual payload to pkt
+ currently creates stack memory allotment for this then sends it off. shoulddd work.
  */
-sr_ip_hdr_t * create_ip_packet(uint8_t* destination_ptr, uint8_t* payload, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
-    sr_ip_hdr_t * pkt = (sr_ip_hdr_t *) payload;
+sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
+    
+    /*Doing it this weird way so its easy to switch to using pointers to a previously malloced memory space incase this doesnt work*/
+    sr_ip_hdr_t header;
+    sr_ip_hdr_t * pkt = &header;
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
      with 4 for relevant fields
      TODO: not sure about tos, id, frag, ttl
@@ -288,6 +288,17 @@ sr_ip_hdr_t * create_ip_packet(uint8_t* destination_ptr, uint8_t* payload, uint8
     pkt->ip_dst = ip_dst;
     pkt->ip_sum = cksum(((void *) pkt), payload_size);
     return pkt;
+}
+/* Create an ICMP header. Does calculating of checksum for you */
+sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
+    sr_icmp_hdr_t hdr;
+    sr_icmp_hdr_t * icmp_hdr = & hdr;
+    icmp_hdr->icmp_type = icmp_type;
+    icmp_hdr->icmp_code = icmp_code;
+    icmp_hdr->icmp_sum =0 ;
+    icmp_hdr->icmp_sum = cksum((void *) icmp_hdr, sizeof(sr_icmp_hdr_t));
+    return icmp_hdr;
+    
 }
 
 /**
@@ -514,7 +525,31 @@ void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint
     
     uint8_t ether_dhost;
     memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
-    uint8_t * eth_pkt = create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type, uint8_t * payload, int payload_size)
+    
+    uint16_t ether_type = ethertype_ip;
+    
+    int payload_size = sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
+    
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(payload_size);
+    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
+    
+    void * ptr = (void *) frame;
+    ptr += sizeof(sr_ethernet_hdr_t);
+    
+    uint32_t ip_src;
+    uint32_t ip_dst;
+    /*TODO: add logic for getting src and host ips*/
+    
+    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
+    
+    ptr += sizeof(sr_ip_hdr_t);
+    
+    memcpy(ptr,create_icmp_header(ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE), sizeof(sr_icmp_hdr_t));
+    
+    const char * iface;
+    /*TODO: add logic for getting iface*/
+    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), iface );
+    
 }
 
 
