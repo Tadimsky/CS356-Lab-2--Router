@@ -209,7 +209,8 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 	if (sr_packet_is_final_destination(sr, iphdr)) {
 		uint8_t ip_proto = ip_protocol(packet);
 		if (ip_proto == ip_protocol_icmp) {
-			sr_handle_icmp_packet(sr, packet + sizeof(sr_ip_hdr_t), len - sizeof(sr_ip_hdr_t), interface);
+			/*NOTE: changed from sr_handle_icmp_packet(sr, packet + sizeof(sr_ip_hdr_t), len - sizeof(sr_ip_hdr_t), interface);*/
+            sr_handle_icmp_packet(sr, packet , len , interface);
 		}
 		else {
 			/* we are the final destination */
@@ -301,9 +302,47 @@ sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
     
 }
 
+void sr_icmp_send(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code) {
+    
+}
+
+void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, char interface) {
+    int eth_payload_size = sizeof(sr_icmp_hdr_t) + sizeof(sr_ip_hdr_t);
+    uint8_t ether_shost;
+    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    
+    uint8_t ether_dhost;
+    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
+    
+    uint16_t ether_type = ethertype_ip;
+    
+    int payload_size = sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
+    
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(payload_size);
+    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
+    
+    void * ptr = (void *) frame;
+    ptr += sizeof(sr_ethernet_hdr_t);
+    
+    uint32_t ip_src;
+    uint32_t ip_dst;
+    /*TODO: add logic for getting src and host ips*/
+    
+    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
+    
+    ptr += sizeof(sr_ip_hdr_t);
+    
+    memcpy(ptr,create_icmp_header(ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE), sizeof(sr_icmp_hdr_t));
+    
+    const char * iface;
+    /*TODO: add logic for getting iface*/
+    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), iface );
+    
+}
+
 /**
  * Handles an ICMP packet that is received by the router.
- * @param packet pointer points to the beginning of the ICMP header
+ * @param packet pointer points to the beginning of the ICMP header NOTE: now points to the IP header
  * @param len is the length of the ICMP packet
  */
 void sr_handle_icmp_packet(struct sr_instance* sr,
@@ -314,39 +353,28 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 		fprintf(stderr, "This is not a valid ICMP packet, length is too short.\n");
 		return;
 	}
-	sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t*)(packet);
+	sr_ip_hdr_t * ip_hdr = (sr_ip_hdr_t *)(packet);
+    sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t *) ((void *) packet + sizeof(sr_ip_hdr_t));
 
 	/* implement this */
+    
     uint8_t type = icmp_hdr->icmp_type;
     /*if this is an echo request*/
-    if (type == ICMP_ECHO_REQUEST_TYPE ){
-        /*uint8_t code = icmp_hdr->icmp_code;*/
-        sr_ip_hdr_t * sr_ip_hdr = (sr_ip_hdr_t)(packet + sizeof(sr_ethernet_hdr_t));
-        uint32_t src_ip = sr_ip_hdr->ip_src;
-        /*TODO: not sure where want the malloc to take place, 
-        especially if need to create an ip Packet */
-        sr_icmp_hdr_t * echo_reply = malloc(sizeof(sr_icmp_hdr_t));
-        echo_reply->icmp_type = 0;
-        echo_reply->icmp_code = 0;
-        /*place holder 0 for consistent checksum calculations*/
-        echo_reply->icmp_sum = 0;
-        /* find actual method call for this address*/
-        uint32_t this_ip = 0;
-        
-        echo_reply->icmp_sum = cksum((void *) echo_reply, (int) sizeof(sr_icmp_hdr_t));
-        uint8_t * buf = create_ip_packet(echo_reply, ip_protocol_icmp, ((unsigned int) sizeof(sr_icmp_hdr_t), this_ip, uint_32_t src_ip);
-                                         
-        /*TODO: find out if have to wrap this in an IP packet first.
-        question is does sr_send_packet take any payload, or an IP packet
-        Also find out call to get iface
-        */
-                                         
-        const char* iface = "this is not right";
-                                         
-        /*sr_send_packet expects a regualr int*/
-        int bufsize = (int) (((sr_ip_hdr_t) buf)->ip_len);
-        sr_send_packet(sr, buf, bufsize, iface);
+    switch (type) {
+		case ICMP_ECHO_REQUEST_TYPE:
+			sr_icmp_send_echo_reply(sr, ip_hdr, *interface);
+			break;
+         /* TODO: not sure what cases need handling*/
+		case ICMP_TIME_EXCEEDED_TYPE:
+			
+			break;
+		default:
+            
+            break;
+            
     }
+                
+
 }
 
 /**
@@ -467,7 +495,7 @@ void sr_wrap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int 
 		free(eth_pkt);
 	}
 }
-
+/*
 void sr_icmp_send(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface, uint8_t type) {
 
 	if (type == TTL_EXPIRED) {
@@ -480,6 +508,7 @@ void sr_icmp_send(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, c
 
 	}
 }
+ */
 
 void sr_icmp_send_ttl_expired(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
 
@@ -517,39 +546,3 @@ void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t 
 
 
 }
-
-void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
-    int eth_payload_size = sizeof(sr_icmp_hdr_t) + sizeof(sr_ip_hdr_t);
-    uint8_t ether_shost;
-    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
-    
-    uint8_t ether_dhost;
-    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
-    
-    uint16_t ether_type = ethertype_ip;
-    
-    int payload_size = sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
-    
-    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(payload_size);
-    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
-    
-    void * ptr = (void *) frame;
-    ptr += sizeof(sr_ethernet_hdr_t);
-    
-    uint32_t ip_src;
-    uint32_t ip_dst;
-    /*TODO: add logic for getting src and host ips*/
-    
-    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
-    
-    ptr += sizeof(sr_ip_hdr_t);
-    
-    memcpy(ptr,create_icmp_header(ICMP_ECHO_REPLY_TYPE, ICMP_ECHO_REPLY_CODE), sizeof(sr_icmp_hdr_t));
-    
-    const char * iface;
-    /*TODO: add logic for getting iface*/
-    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), iface );
-    
-}
-
-
