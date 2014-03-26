@@ -508,7 +508,13 @@ void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t 
 }
 
 void sr_icmp_send_echo_reply(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface) {
-
+    int eth_payload_size = sizeof(sr_icmp_hdr_t) + sizeof(sr_ip_hdr_t);
+    uint8_t ether_shost;
+    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    
+    uint8_t ether_dhost;
+    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
+    uint8_t * eth_pkt = create_ethernet_packet (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type, uint8_t * payload, int payload_size)
 }
 
 
