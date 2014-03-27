@@ -232,15 +232,12 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     /* Get source and destination MACs */
     uint8_t ether_shost;
     memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
-    uint8_t ether_dhost;
     
+    uint8_t ether_dhost;
     struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), packet->ip_src);
-    if (entry == NULL) {
-    	/* need to find out this information */
-    	return;
+    if (entry != NULL) {
+    	memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
     }
-
-    memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
 
     /* Icmp is always IP */
     uint16_t ether_type = ethertype_ip;
@@ -263,10 +260,16 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     ptr += sizeof(sr_ip_hdr_t);
     create_icmp_header((sr_icmp_hdr_t*)ptr, icmp_type, icmp_code);
     
-    /* Send the ethernet frame to the desired interface! */
-    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
-    /* Don't forget to free no longer needed memory*/
-    free(frame);
+    if (entry == NULL) {
+    	/* do not know the MAC, need to send arp request and queue packet on this request */
+
+    }
+    else {
+    	/* Send the ethernet frame to the desired interface! */
+		sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
+		/* Don't forget to free no longer needed memory*/
+		free(frame);
+    }
 }
 
 /*
