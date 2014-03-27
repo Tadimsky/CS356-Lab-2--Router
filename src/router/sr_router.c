@@ -223,22 +223,22 @@ bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned c
 }
 
 void send_arp_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
+
     uint32_t ar_sip = sr->if_list->ip;
-    unsigned char ar_sha;
-    memcpy((void*) &ar_sha, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    unsigned char * ar_sha = malloc(sizeof(unsigned char) * ETHER_ADDR_LEN);
+    memcpy((void*) ar_sha, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     
     sr_ethernet_hdr_t * frame = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
-    frame = create_ethernet_header(ar_tha, (uint8_t *) &ar_sha, ethertype_arp);
+    create_ethernet_header(frame, ar_tha, (uint8_t *)ar_sha, ethertype_arp);
     
     void * ptr = (void *) frame;
     ptr += sizeof(sr_ethernet_hdr_t);
-    
-    sr_arp_hdr_t * arp_hdr = create_arp_header(ar_op, &ar_sha, ar_sip, ar_tha, ar_tip);
-    memcpy((void *) ptr, (void *) arp_hdr, sizeof(sr_arp_hdr_t));
+
+    create_arp_header((sr_arp_hdr_t *) ptr, ar_op, ar_sha, ar_sip, ar_tha, ar_tip);
     
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), interface );
-    free(frame);
     
+    free(frame);
 }
 
 /*Send a non type 3 icmp message*/
