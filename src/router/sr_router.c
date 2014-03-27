@@ -158,8 +158,8 @@ sr_ethernet_hdr_t * create_ethernet_header (uint8_t* ether_dhost, uint8_t* ether
 }
 
 /*
- Setups an IP header at the memory address provided.
-
+	Setups an IP header at the memory address provided.
+	ip_src and ip_dst should be in network byte order.
  */
 sr_ip_hdr_t * create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
@@ -178,26 +178,24 @@ sr_ip_hdr_t * create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_
     pkt->ip_dst = ip_dst;
 
     /* should the checksum not be the size of the header + size of payload? */
-    pkt->ip_sum = cksum(((void *) pkt), payload_size);
+    pkt->ip_sum = cksum(((void *) pkt), sizeof(sr_ip_hdr_t));
     return pkt;
 }
-/* Create an ICMP header. Does calculating of checksum for you */
-sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
-    sr_icmp_hdr_t hdr;
-    sr_icmp_hdr_t * icmp_hdr = & hdr;
+/*
+	Create an ICMP header. Does calculating of checksum for you at the memory address provided.
+*/
+sr_icmp_hdr_t* create_icmp_header(sr_icmp_hdr_t * icmp_hdr, uint8_t icmp_type, uint8_t icmp_code){
     icmp_hdr->icmp_type = icmp_type;
     icmp_hdr->icmp_code = icmp_code;
-    icmp_hdr->icmp_sum =0 ;
-    icmp_hdr->icmp_sum = cksum((void *) icmp_hdr, sizeof(sr_icmp_hdr_t));
+    icmp_hdr->icmp_sum  = 0 ;
+    icmp_hdr->icmp_sum = cksum((void *)icmp_hdr, sizeof(sr_icmp_hdr_t));
     return icmp_hdr;
-    
 }
+
+
 /* Create a header for an icmp t3
  TODO: memory handling may not work for this and other similar routines*/
-sr_icmp_t3_hdr_t * create_icmp_t3_header(uint8_t icmp_code, uint8_t* data){
-    sr_icmp_t3_hdr_t header;
-    sr_icmp_t3_hdr_t * icmp_t3_hdr = &header;
-    
+sr_icmp_t3_hdr_t * create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t icmp_code, uint8_t* data){
     icmp_t3_hdr->icmp_type = ICMP_T3_TYPE;
     icmp_t3_hdr->icmp_code = icmp_code;
     icmp_t3_hdr->next_mtu = ICMP_NEXT_MTU;
