@@ -194,7 +194,8 @@ sr_icmp_hdr_t* create_icmp_header(uint8_t icmp_type, uint8_t icmp_code){
     return icmp_hdr;
     
 }
-
+/* Create a header for an icmp t3
+ TODO: memory handling may not work for this and other similar routines*/
 sr_icmp_t3_hdr_t * create_icmp_t3_header(uint8_t icmp_code, uint8_t* data){
     sr_icmp_t3_hdr_t header;
     sr_icmp_t3_hdr_t * icmp_t3_hdr = &header;
@@ -212,7 +213,7 @@ sr_icmp_t3_hdr_t * create_icmp_t3_header(uint8_t icmp_code, uint8_t* data){
     return icmp_t3_hdr;
 }
 
-/*TODO: maybe move scraping info from IP packet up a level or two*/
+/*Send a non type 3 icmp message*/
 void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
     /* Get source and destination MACs */
     uint8_t ether_shost;
@@ -246,7 +247,10 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     /* Don't forget to free no longer needed memory*/
     free(frame);
 }
-void sr_icmp_send_t3(struct sr_instance * sr, uint8_t icmp_code, uint8_t * data, sr_ip_hdr_t * packet, char* interface){
+/*
+ Send a t3 message.  The ip header passed in will be put in the data field along with the first 8 bytes of the IP payload
+ */
+void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_hdr_t * packet, char* interface){
     /* Get source and destination MACs */
     uint8_t ether_shost;
     memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
@@ -272,7 +276,8 @@ void sr_icmp_send_t3(struct sr_instance * sr, uint8_t icmp_code, uint8_t * data,
     
     /* Place ICMPT3 header right after IP header */
     ptr += sizeof(sr_ip_hdr_t);
-    memcpy(ptr,create_icmp_t3_header(icmp_code, data), sizeof(sr_icmp_t3_hdr_t));
+    /* The data field of the t3 header is the IP header and the first 8 bytes of the IP payload */
+    memcpy(ptr,create_icmp_t3_header(icmp_code,(uint8_t *) packet), sizeof(sr_icmp_t3_hdr_t));
     
     /* Send the ethernet frame to the desired interface! */
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), interface);
@@ -281,24 +286,25 @@ void sr_icmp_send_t3(struct sr_instance * sr, uint8_t icmp_code, uint8_t * data,
     
     
 }
-
+/*
+ Depricated
 void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t icmp_code) {
 	uint8_t * icmp_packet = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
     
 	sr_ip_hdr_t * ip_header = (sr_ip_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t));
-	/* setup ip header */
+	 setup ip header
     
     
-	/* get route for the packet to send back to sender */
+	 get route for the packet to send back to sender
 	struct sr_rt * route = sr_route_prefix_match(sr, &packet->ip_src);
 	if (route == NULL) {
-		/* error */
+		 error
 		return;
 	}
-	/* get interface that corresponds to the route */
+	 get interface that corresponds to the route
 	struct sr_if * iface = sr_get_interface(sr, route->interface);
 	if (iface == NULL) {
-		/* error */
+		 error
 		return;
 	}
     
@@ -306,15 +312,15 @@ void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t 
 	icmp_header->icmp_type = 3;
 	icmp_header->icmp_code = icmp_code;
 	icmp_header->icmp_sum = 0;
-	/* data is first bit of original date */
+	 data is first bit of original date
 	memcpy(icmp_header->data, packet, ICMP_DATA_SIZE);
 	icmp_header->icmp_sum = cksum(icmp_header, sizeof(sr_icmp_t3_hdr_t));
-	/* send the packet */
+	 send the packet
 	free(icmp_packet);
     
     
 }
-
+*/
 
 /**
  * Handles an ARP packet that is received by the router.
@@ -394,7 +400,8 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		else {
 			/* we are the final destination */
 			/* send a port unreachable message to the sender */
-			sr_icmp_send_type_3(sr, iphdr, ICMP_PORT_UNREACHABLE_CODE);
+            sr_icmp_send_t3_message(sr, ICMP_PORT_UNREACHABLE_CODE, iphdr, interface);
+			/*sr_icmp_send_type_3(sr, iphdr, ICMP_PORT_UNREACHABLE_CODE);*/
 		}
 	}
 	else {
@@ -421,7 +428,8 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		else {
 			/* no route found
 			 * send network unreachable */
-			sr_icmp_send_type_3(sr,iphdr, ICMP_DESTINATION_NET_UNREACHABLE_CODE);
+			/*sr_icmp_send_type_3(sr,iphdr, ICMP_DESTINATION_NET_UNREACHABLE_CODE);*/
+            sr_icmp_send_t3_message(sr, ICMP_DESTINATION_NET_UNREACHABLE_CODE, iphdr, interface);
 		}
 	}
 
