@@ -12,47 +12,23 @@
 #include "sr_protocol.h"
 
 #define MAX_SEND_ARP 5
+#define ICMP_T3_TYPE 3
 
 /* 
   This function gets called every second. For each request sent out, we keep
   checking whether we should resend an request or destroy the arp request.
   See the comments in the header file for an idea of what it should look like.
 */
-void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-    /* Fill this in */
-	// run through all the current arp requests and resend them
-	// if they have been sent > 5 times, then they errored and we must send error icmp
-		// destination host unreachable should go back to the senders of packets that were waiting on this request
 
-	struct sr_arpreq * current = sr->cache.requests;
-	struct sr_arpreq * next;
-	if (current) next = current->next;
+void send_icmp_host_unreachable(struct sr_instance * sr, struct sr_arpreq * req) {
+	struct sr_packet * current = req -> packets;
+	struct sr_if* interface = sr_get_interface(sr,current->iface);
+
 
 	while (current != NULL) {
-
-
-		sr_arpreq_handle(sr, current);
-		current = next;
-		if (current) next = current->next;
-
-	}
-
-}
-
-void sr_arpreq_handle(struct sr_instance * sr, struct sr_arpreq * req) {
-	if (difftime(time(0), req->sent > 1)) {
-
-	}
-	if (req->times_sent >= 5) {
-		//fail, host is unreachable after 5 attempts
-		send_icmp_host_unreachable(sr, req);
-		sr_arpreq_destroy(&sr->cache, req);
-	}
-	else {
-		//send the arp request and increment times_sent
-		send_arp_request(sr, req);
-		req -> sent = time(0);
-		req -> times_sent++;
+		sr_ip_hdr_t* currentIPhdr = (void *)(current->buf) + sizeof(sr_ethernet_hdr_t);
+		sr_icmp_send_t3_message(sr, ICMP_T3_TYPE, currentIPhdr, interface);
+		current = current->next;
 	}
 }
 
@@ -74,6 +50,44 @@ void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
 	sr_wrap_and_send_pkt(sr, (uint8_t *)&arp_header, sizeof(struct sr_arp_hdr), req->ip, 0, ethertype_arp);
 }
 
+void sr_arpreq_handle(struct sr_instance * sr, struct sr_arpreq * req) {
+	if (difftime(time(0), req->sent > 1)) {
+
+	}
+	if (req->times_sent >= 5) {
+		/* fail, host is unreachable after 5 attempts */
+		send_icmp_host_unreachable(sr, req);
+		sr_arpreq_destroy(&sr->cache, req);
+	}
+	else {
+		/* send the arp request and increment times_sent */
+		send_arp_request(sr, req);
+		req -> sent = time(0);
+		req -> times_sent++;
+	}
+}
+
+void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
+    /* Fill this in 
+	   run through all the current arp requests and resend them
+	   if they have been sent > 5 times, then they errored and we must send error icmp
+	   destination host unreachable should go back to the senders of packets that were waiting on this request */
+
+	struct sr_arpreq * current = sr->cache.requests;
+	struct sr_arpreq * next;
+	if (current) next = current->next;
+
+	while (current != NULL) {
+
+
+		sr_arpreq_handle(sr, current);
+		current = next;
+		if (current) next = current->next;
+
+	}
+
+}
+
 void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
 	struct sr_packet * current = req->packets;
 	struct sr_ip_hdr * ip_header;
@@ -85,13 +99,7 @@ void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
 	}
 }
 
-void send_icmp_host_unreachable(struct sr_instance * sr, struct sr_arpreq * req) {
-	struct sr_packet * current = req -> packets;
-	while (current != NULL) {
-		sr_send_icmp(sr, current->buf, current->len, 3, 1);
-		current = current->next;
-	}
-}
+
 /*
  * *********************************************************************
  */
