@@ -199,7 +199,7 @@ bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned c
     return true;
 }
 
-void send_arp_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
+void sr_arp_send_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
 
     uint32_t ar_sip = sr->if_list->ip;
     unsigned char * ar_sha = malloc(sizeof(unsigned char) * ETHER_ADDR_LEN);
@@ -321,7 +321,7 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 			if(interface->ip == target){
                 memcpy((void*) (arphdr->ar_sha), (void *) (interface->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
 				/*arphdr->ar_sha = interface->addr;*/
-				send_arp_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface) /* send the reply */
+				sr_arp_send_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface) /* send the reply */
 				break;
 			}
             
