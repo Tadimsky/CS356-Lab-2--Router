@@ -208,15 +208,13 @@ sr_icmp_t3_hdr_t * create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t
 }
 
 /* Create arp header */
-sr_arp_hdr_t * create_arp_header(unsigned short arp_op, unsigned char * ar_sha, uint32_t ar_sip, unsigned char * ar_tha, uint32_t ar_tip) {
-    sr_arp_hdr_t header;
-    sr_arp_hdr_t * arp_hdr = & header;
-    
-    arp_hdr->ar_hrd = arp_hrd_ethernet;
-    arp_hdr->ar_pro = arp_hrd_ethernet;
+sr_arp_hdr_t * create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned char * ar_sha, uint32_t ar_sip, unsigned char * ar_tha, uint32_t ar_tip) {
+    arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
+    arp_hdr->ar_pro = htons(arp_hrd_ethernet);
+
     arp_hdr->ar_hln = ETHER_ADDR_LEN * sizeof(uint8_t);
     arp_hdr->ar_pln = sizeof(uint32_t);
-    arp_hdr->ar_op = arp_op;
+    arp_hdr->ar_op = htons(arp_op);
     memcpy((void *) arp_hdr->ar_sha , ar_sha, sizeof(unsigned char) * ETHER_ADDR_LEN);
     arp_hdr->ar_sip = ar_sip;
     memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
