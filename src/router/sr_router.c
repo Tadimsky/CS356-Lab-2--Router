@@ -213,6 +213,42 @@ sr_icmp_t3_hdr_t * create_icmp_t3_header(uint8_t icmp_code, uint8_t* data){
     return icmp_t3_hdr;
 }
 
+/* Create arp header */
+sr_arp_hdr_t * create_arp_header(unsigned short arp_op, unsigned char * ar_sha, uint32_t ar_sip, unsigned char * ar_tha, uint32_t ar_tip) {
+    sr_arp_hdr_t header;
+    sr_arp_hdr_t * arp_hdr = & header;
+    
+    arp_hdr->ar_hrd = arp_hrd_ethernet;
+    arp_hdr->ar_pro = arp_hrd_ethernet;
+    arp_hdr->ar_hln = ETHER_ADDR_LEN * sizeof(uint8_t);
+    arp_hdr->ar_pln = sizeof(uint32_t);
+    arp_hdr->ar_op = arp_op;
+    memcpy((void *) arp_hdr->ar_sha , ar_sha, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    arp_hdr->ar_sip = ar_sip;
+    memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    arp_hdr->ar_tip = ar_tip;
+    return arp_hdr;
+}
+
+void send_arp_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
+    uint32_t ar_sip = sr->if_list->ip;
+    unsigned char ar_sha;
+    memcpy((void*) &ar_sha, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    
+    sr_ethernet_hdr_t * frame = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
+    frame = create_ethernet_header(ar_tha, (uint8_t *) &ar_sha, ethertype_arp);
+    
+    void * ptr = (void *) frame;
+    ptr += sizeof(sr_ethernet_hdr_t);
+    
+    sr_arp_hdr_t * arp_hdr = create_arp_header(ar_op, &ar_sha, ar_sip, ar_tha, ar_tip);
+    memcpy((void *) ptr, (void *) arp_hdr, sizeof(sr_arp_hdr_t));
+    
+    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), interface );
+    free(frame);
+    
+}
+
 /*Send a non type 3 icmp message*/
 void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
     /* Get source and destination MACs */
