@@ -148,18 +148,18 @@ void sr_handlepacket(struct sr_instance* sr,
  Has NO logic for handling data greater than ethernet's MTU
  destination ethernet address, source ethernet address, packet type ID
  */
-sr_ethernet_hdr_t * create_ethernet_header (sr_ethernet_hdr_t * eth_hdr, uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
+bool create_ethernet_header (sr_ethernet_hdr_t * eth_hdr, uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
     memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     eth_hdr->ether_type = htons(ether_type);
-    return eth_hdr;
+    return true;
 }
 
 /*
 	Setups an IP header at the memory address provided.
 	ip_src and ip_dst should be in network byte order.
  */
-sr_ip_hdr_t * create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
+bool create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
      with 4 for relevant fields
      TODO: not sure about tos, id, frag, ttl
@@ -177,23 +177,23 @@ sr_ip_hdr_t * create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_
 
     /* should the checksum not be the size of the header + size of payload? */
     pkt->ip_sum = cksum(((void *) pkt), sizeof(sr_ip_hdr_t));
-    return pkt;
+    return true;
 }
 /*
 	Create an ICMP header. Does calculating of checksum for you at the memory address provided.
 */
-sr_icmp_hdr_t* create_icmp_header(sr_icmp_hdr_t * icmp_hdr, uint8_t icmp_type, uint8_t icmp_code){
+bool create_icmp_header(sr_icmp_hdr_t * icmp_hdr, uint8_t icmp_type, uint8_t icmp_code){
     icmp_hdr->icmp_type = icmp_type;
     icmp_hdr->icmp_code = icmp_code;
     icmp_hdr->icmp_sum  = 0 ;
     icmp_hdr->icmp_sum = cksum((void *)icmp_hdr, sizeof(sr_icmp_hdr_t));
-    return icmp_hdr;
+    return true;
 }
 
 
 /* Create a header for an icmp t3
  TODO: memory handling may not work for this and other similar routines*/
-sr_icmp_t3_hdr_t * create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t icmp_code, uint8_t* data){
+bool create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t icmp_code, uint8_t* data){
     icmp_t3_hdr->icmp_type = ICMP_T3_TYPE;
     icmp_t3_hdr->icmp_code = icmp_code;
     icmp_t3_hdr->next_mtu = ICMP_NEXT_MTU;
@@ -204,11 +204,11 @@ sr_icmp_t3_hdr_t * create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t
     
     icmp_t3_hdr->icmp_sum = cksum(icmp_t3_hdr, sizeof(sr_icmp_t3_hdr_t));
     
-    return icmp_t3_hdr;
+    return true;
 }
 
 /* Create arp header */
-sr_arp_hdr_t * create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned char * ar_sha, uint32_t ar_sip, unsigned char * ar_tha, uint32_t ar_tip) {
+bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned char * ar_sha, uint32_t ar_sip, unsigned char * ar_tha, uint32_t ar_tip) {
     arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
     arp_hdr->ar_pro = htons(arp_hrd_ethernet);
 
@@ -219,7 +219,7 @@ sr_arp_hdr_t * create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, 
     arp_hdr->ar_sip = ar_sip;
     memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
     arp_hdr->ar_tip = htonl(ar_tip);
-    return arp_hdr;
+    return true;
 }
 
 void send_arp_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
