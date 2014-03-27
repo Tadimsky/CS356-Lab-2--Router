@@ -74,4 +74,39 @@ void sr_set_ether_ip(struct sr_instance* , uint32_t );
 void sr_set_ether_addr(struct sr_instance* , const unsigned char* );
 void sr_print_if_list(struct sr_instance* );
 
+
+/* IP Field defaults */
+enum ip_defaults {
+	IP_DEFAULT_TOS = 0,
+	IP_DEFAULT_ID = 0,
+	IP_DEFAULT_OFF = 0,
+	IP_DEFAULT_TTL = 15
+};
+
+/* ICMP Echo Reply Type */
+enum icmp_echo {
+	ICMP_ECHO_REPLY_TYPE = 0,
+	ICMP_ECHO_REPLY_CODE = 0,
+	/* ICMP Echo Request Type */
+	ICMP_ECHO_REQUEST_TYPE = 8
+};
+
+/* ICMP Type 3 Messages */
+enum icmp_type3 {
+	ICMP_T3_TYPE = 3,
+	ICMP_DESTINATION_NET_UNREACHABLE_CODE = 0,
+	ICMP_DESTINATION_HOST_UNREACHABLE_CODE = 1,
+	ICMP_PORT_UNREACHABLE_CODE = 3,
+	ICMP_NEXT_MTU = 0,
+	ICMP_UNUSED = 0
+};
+
+/* ICMP TTL Type */
+enum icmp_ttl {
+	ICMP_TIME_EXCEEDED_TYPE = 11,
+	ICMP_TIME_EXCEEDED_CODE = 0
+};
+
+
+
 #endif /* SR_ROUTER_H */
