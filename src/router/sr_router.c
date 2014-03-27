@@ -158,15 +158,10 @@ sr_ethernet_hdr_t * create_ethernet_header (uint8_t* ether_dhost, uint8_t* ether
 }
 
 /*
- Create an IP header.
- TODO: do these values need nthos?
- currently creates stack memory allotment for this then sends it off. shoulddd work.
+ Setups an IP header at the memory address provided.
+
  */
-sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
-    
-    /*Doing it this weird way so its easy to switch to using pointers to a previously malloced memory space incase this doesnt work*/
-    sr_ip_hdr_t header;
-    sr_ip_hdr_t * pkt = &header;
+sr_ip_hdr_t * create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_size, uint32_t ip_src, uint32_t ip_dst){
     /* assuming the syntax in sr_protocol.h -> sr_ip_hdr means starts out
      with 4 for relevant fields
      TODO: not sure about tos, id, frag, ttl
@@ -178,8 +173,11 @@ sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_s
     pkt->ip_ttl = IP_DEFAULT_TTL;
     pkt->ip_p = ip_proto;
     pkt->ip_sum = 0;
+    /* htons? */
     pkt->ip_src =ip_src;
     pkt->ip_dst = ip_dst;
+
+    /* should the checksum not be the size of the header + size of payload? */
     pkt->ip_sum = cksum(((void *) pkt), payload_size);
     return pkt;
 }
