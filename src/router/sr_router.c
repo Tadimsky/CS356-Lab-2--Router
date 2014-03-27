@@ -590,13 +590,3 @@ int sr_util_mask_length(in_addr_t mask) {
 	}
 	return size;
 }
-
-struct sr_if * sr_get_interface(struct sr_instance * sr, char * interface) {
-	struct sr_if * cur = sr->if_list;
-	while (cur != NULL) {
-		if (strncmp(cur->name, interface, 32) == 0) {
-			return cur;
-		}
-	}
-	return NULL;
-}
