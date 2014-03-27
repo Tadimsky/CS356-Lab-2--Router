@@ -218,7 +218,7 @@ sr_arp_hdr_t * create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, 
     memcpy((void *) arp_hdr->ar_sha , ar_sha, sizeof(unsigned char) * ETHER_ADDR_LEN);
     arp_hdr->ar_sip = ar_sip;
     memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
-    arp_hdr->ar_tip = ar_tip;
+    arp_hdr->ar_tip = htonl(ar_tip);
     return arp_hdr;
 }
 
