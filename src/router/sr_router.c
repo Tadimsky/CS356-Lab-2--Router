@@ -233,8 +233,15 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     uint8_t ether_shost;
     memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     uint8_t ether_dhost;
-    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
     
+    struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), packet->ip_src);
+    if (entry == NULL) {
+    	/* need to find out this information */
+    	return;
+    }
+
+    memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
+
     /* Icmp is always IP */
     uint16_t ether_type = ethertype_ip;
     
