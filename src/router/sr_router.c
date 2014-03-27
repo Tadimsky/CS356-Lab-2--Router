@@ -280,8 +280,12 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     uint8_t ether_shost;
     memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     uint8_t ether_dhost;
-    /* TODO: Need to look this up and request if it doesn't work */
-    memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
+
+
+    struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), packet->ip_src);
+	if (entry != NULL) {
+		memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
+	}
     
     /* Icmp is always IP */
     uint16_t ether_type = ethertype_ip;
@@ -304,10 +308,16 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     /* The data field of the t3 header is the IP header and the first 8 bytes of the IP payload */
     create_icmp_t3_header((sr_icmp_t3_hdr_t *) ptr, icmp_code, (uint8_t *) packet);
     
-    /* Send the ethernet frame to the desired interface! */
-    sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), interface);
-    /* Don't forget to free no longer needed memory*/
-    free(frame);
+    if (entry == NULL) {
+    	/* send arp request and queue packet behind this request */
+
+    }
+    else {
+		/* Send the ethernet frame to the desired interface! */
+		sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), interface);
+		/* Don't forget to free no longer needed memory*/
+		free(frame);
+    }
     
     
 }
