@@ -23,29 +23,6 @@
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
 #include "sr_utils.h"
-/* IP Field defaults */
-#define IP_DEFAULT_TOS 0
-#define IP_DEFAULT_ID 0
-#define IP_DEFAULT_OFF 0
-#define IP_DEFAULT_TTL 15
-
-/* ICMP Echo Reply Type */
-#define ICMP_ECHO_REPLY_TYPE 0
-#define ICMP_ECHO_REPLY_CODE 0
-/* ICMP Echo Request Type */
-#define ICMP_ECHO_REQUEST_TYPE 8
-
-/* ICMP Type 3 Messages */
-#define ICMP_T3_TYPE 3
-#define ICMP_DESTINATION_NET_UNREACHABLE_CODE 0
-#define ICMP_DESTINATION_HOST_UNREACHABLE_CODE 1
-#define ICMP_PORT_UNREACHABLE_CODE 3
-#define ICMP_NEXT_MTU 0
-#define ICMP_UNUSED 0
-
-/* ICMP TTL Type */
-#define ICMP_TIME_EXCEEDED_TYPE 11
-#define ICMP_TIME_EXCEEDED_CODE 0
 
 void sr_handle_arp_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len,	char* interface);
 void sr_handle_ip_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len, char* interface);
@@ -275,6 +252,10 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     /* Don't forget to free no longer needed memory*/
     free(frame);
 }
+
+enum butts {
+	yolo = 1
+};
 /*
  Send a t3 message.  The ip header passed in will be put in the data field along with the first 8 bytes of the IP payload
  */
