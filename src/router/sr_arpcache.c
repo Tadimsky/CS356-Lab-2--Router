@@ -62,7 +62,7 @@ void sr_check_timeout_req(struct sr_instance * sr, struct sr_arpreq * req) {
 			/* TODO: do we flood to all interfaces? */
 			struct sr_if* thisInterface = sr->if_list;
 			while(thisInterface != NULL){
-				send_arp_message(sr, 1, ARP_BROADCAST_MAC, req->ip, thisInterface);
+				sr_arp_send_message(sr, 1, ARP_BROADCAST_MAC, req->ip, thisInterface);
 				req -> sent = time(0);
 				req -> times_sent++;
 				thisInterface++;
@@ -102,9 +102,9 @@ void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
 	struct sr_packet * current = req->packets;
 
 	while (current != NULL) {
-		sr_arpentry * entry = sr_arpcache_lookup(&(sr->cache), req->ip)
+		struct sr_arpentry * entry = sr_arpcache_lookup(&(sr->cache), req->ip)
 		unsigned char destMAC = entry->mac;
-		((sr_ether_hdr_t *) current->buf)->ether_dhost = (uint8_t) destMAC;
+		((sr_ethernet_hdr_t *) current->buf)->ether_dhost = (uint8_t) destMAC;
 		sr_send_packet(sr, current->buf, current->len, current->iface);
 		free(entry);
 
