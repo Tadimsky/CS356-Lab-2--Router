@@ -102,13 +102,17 @@ void sr_handlepacket(struct sr_instance* sr,
 		return;
 	}
 	uint16_t  type = ethertype(packet);
+
+	void * pkt = (void*)packet;
 	switch (type) {
 		case ethertype_ip:
-			sr_handle_ip_packet(sr, packet + sizeof(sr_ethernet_hdr_t), len - sizeof(sr_ethernet_hdr_t), interface);
+			Debug("Received IP Packet\n");
+			sr_handle_ip_packet(sr, pkt + sizeof(sr_ethernet_hdr_t), len - sizeof(sr_ethernet_hdr_t), interface);
 			break;
 
 		case ethertype_arp:
-			sr_handle_arp_packet(sr, packet + sizeof(sr_ethernet_hdr_t), len - sizeof(sr_ethernet_hdr_t), interface);
+			Debug("Received ARP Packet\n");
+			sr_handle_arp_packet(sr, pkt + sizeof(sr_ethernet_hdr_t), len - sizeof(sr_ethernet_hdr_t), interface);
 			break;
 		default:
 
@@ -305,7 +309,8 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 		return;
 	}
 	
-	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet);
+	arphdr->ar_op = ntohs(arphdr->ar_op);
 	
 	if(arphdr->ar_op == 1){ /* it's a request */
         /* implicit decleration stuff TODO fix */
