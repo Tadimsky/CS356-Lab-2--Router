@@ -37,6 +37,7 @@ bool sr_packet_is_final_destination(struct sr_instance* sr, sr_ip_hdr_t * header
 bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header);
 struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr);
 int sr_util_mask_length(in_addr_t mask);
+void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req);
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -473,18 +474,14 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 			memcpy(fwd + sizeof(sr_ethernet_hdr_t), iphdr, len);
             sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) fwd;
             
-            uint8_t * ether_dhost;
-            /*TODO: add logic for getting ether_dhost*/
-            
             /* Get source info*/
             struct sr_if * iface = sr_get_interface(sr, interface);
             if (iface == NULL) {
                 fprintf(stderr, "Invalid Interface: %s.\n", interface);
             }
-            
+            uint8_t * ether_dhost;
             /* Get destination info*/
             struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), iphdr->ip_dst);
-            
             if (entry != NULL) {
                 memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
                 memcpy((void *) (frame->ether_shost), iface->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
@@ -493,7 +490,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
                 sr_send_packet(sr, fwd, len + sizeof(sr_ethernet_hdr_t), interface);
                 free(fwd);
             } else {
-                /* TODO: Put IP packet in queue, send out arp request and obviously cant send*/
+                /* Put IP packet in queue, send out arp request and cant send*/
                 sr_arpcache_queuereq(&sr->cache, iphdr->ip_dst, (uint8_t *) iphdr, len, interface);
                 sr_arp_request(sr, iphdr->ip_dst, (uint8_t *) iphdr, len, interface);
             }
@@ -531,7 +528,7 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
     uint16_t sum = icmp_hdr->icmp_sum;
     icmp_hdr->icmp_sum = 0;
     
-    /* If the checksum doesnt match, discard */
+     If the checksum doesnt match, discard */
     /* checksums not working for some reason
     if (sum != cksum((void *) icmp_hdr, sizeof(sr_icmp_hdr_t))){
     	fprintf(stderr, "This is not a valid ICMP packet, the checksums do not match.\n");
