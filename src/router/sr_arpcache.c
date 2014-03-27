@@ -65,7 +65,7 @@ void sr_check_timeout_req(struct sr_instance * sr, struct sr_arpreq * req) {
 				sr_arp_send_message(sr, htons((uint16_t) ARP_REQUEST), (char*) ARP_BROADCAST_MAC, /* STOPPING HERE .. TODO */ req->ip, thisInterface);
 				req -> sent = time(0);
 				req -> times_sent++;
-				thisInterface++;
+				thisInterface = thisInterface->next;
 			}
 		}
 	}

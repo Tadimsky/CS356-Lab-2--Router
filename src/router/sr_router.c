@@ -358,7 +358,7 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 			if(pending->ip == arphdr->ar_sip){
 				sr_arpreq_send_packets(sr, pending);
 			}
-			pending++;
+			pending = pending->next;
 		}
 	}
     
