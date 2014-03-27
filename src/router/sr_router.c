@@ -11,17 +11,20 @@
  *
  **********************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
+#include "sr_router.h"
+
 #include <assert.h>
+#include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "sr_if.h"
-#include "sr_rt.h"
-#include "sr_router.h"
-#include "sr_protocol.h"
 #include "sr_arpcache.h"
+#include "sr_if.h"
+#include "sr_protocol.h"
+#include "sr_rt.h"
 #include "sr_utils.h"
 
 void sr_handle_arp_packet(struct sr_instance* sr, uint8_t * packet/* lent */, unsigned int len,	char* interface);
@@ -93,6 +96,7 @@ void sr_handlepacket(struct sr_instance* sr,
 	assert(interface);
 
 	printf("*** -> Received packet of length %d \n",len);
+
 	/* Ethernet */
 
 	/* check if packet is valid ethernet */
@@ -101,6 +105,7 @@ void sr_handlepacket(struct sr_instance* sr,
 		fprintf(stderr, "This is not a valid ETHERNET packet, length is too short.");
 		return;
 	}
+	print_hdrs(packet, len);
 	uint16_t  type = ethertype(packet);
 
 	void * pkt = (void*)packet;
@@ -191,7 +196,7 @@ bool create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t icmp_code, ui
 /* Create arp header */
 bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned char * ar_sha, uint32_t ar_sip, unsigned char * ar_tha, uint32_t ar_tip) {
     arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
-    arp_hdr->ar_pro = htons(arp_hrd_ethernet);
+    arp_hdr->ar_pro = htons(ethertype_ip);
 
     arp_hdr->ar_hln = ETHER_ADDR_LEN * sizeof(uint8_t);
     arp_hdr->ar_pln = sizeof(uint32_t);
@@ -204,8 +209,8 @@ bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned c
 }
 
 void sr_arp_send_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
-
-    uint32_t ar_sip = sr->if_list->ip;
+	/* TODO: do we just use the first item in the list? */
+    uint32_t ar_sip = ntohl(sr->if_list->ip);
     unsigned char * ar_sha = malloc(sizeof(unsigned char) * ETHER_ADDR_LEN);
     memcpy((void*) ar_sha, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     
@@ -312,6 +317,10 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 	
 	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet);
 	arphdr->ar_op = ntohs(arphdr->ar_op);
+	arphdr->ar_hrd = ntohs(arphdr->ar_hrd);
+	arphdr->ar_pro = ntohs(arphdr->ar_pro);
+	arphdr->ar_tip = ntohl(arphdr->ar_tip);
+	arphdr->ar_sip = ntohl(arphdr->ar_sip);
 	
 	if(arphdr->ar_op == 1){ /* it's a request */
         /* implicit decleration stuff TODO fix */
@@ -323,14 +332,13 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 		struct sr_if* interfaceList = sr->if_list;
 		while(interfaceList != NULL){ /* iterate through interfaces till it finds the intended target, fills in respective MAC */
 			
-			if(interfaceList->ip == target){
+			if(ntohl(interfaceList->ip) == target){
                 memcpy((void*) (arphdr->ar_sha), (void *) (interfaceList->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
 				/*arphdr->ar_sha = interface->addr;*/
-				sr_arp_send_message(sr, htons((uint16_t) ARP_REPLY), arphdr->ar_tha, arphdr->ar_tip, interface); /* send the reply */
+				sr_arp_send_message(sr, ARP_REPLY, arphdr->ar_tha, arphdr->ar_tip, interface); /* send the reply */
 				break;
 			}
-            
-			interfaceList++;
+            interfaceList = interfaceList->next;
 		}
 
 
@@ -475,6 +483,7 @@ bool sr_packet_is_final_destination(struct sr_instance* sr, sr_ip_hdr_t * header
 		if (header->ip_dst == cur_iface->ip) {
 			return true;
 		}
+		cur_iface = cur_iface->next;
 	}
 	return false;
 }
