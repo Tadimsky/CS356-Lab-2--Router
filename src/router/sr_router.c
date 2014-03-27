@@ -432,6 +432,14 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 
 	/* implement this */
     
+    uint16_t sum = icmp_hdr->icmp_sum;
+    icmp_hdr->icmp_sum = 0;
+    
+    /* If the checksum doesnt match, discard */
+    if (sum != cksum((void *) icmp_hdr, sizeof(sr_icmp_hdr_t))){
+        return;
+    }
+    
     uint8_t type = icmp_hdr->icmp_type;
     /*if this is an echo request*/
     switch (type) {
