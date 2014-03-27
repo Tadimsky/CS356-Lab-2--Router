@@ -13,16 +13,13 @@
 
 #define MAX_SEND_ARP 5
 #define ICMP_T3_TYPE 3
+#define ARP_BROADCAST_MAC 0xFFFFFFFFFFFF
 
-/* 
-  This function gets called every second. For each request sent out, we keep
-  checking whether we should resend an request or destroy the arp request.
-  See the comments in the header file for an idea of what it should look like.
-*/
 
-void send_icmp_host_unreachable(struct sr_instance * sr, struct sr_arpreq * req) {
-	struct sr_packet * current = req -> packets;
-	struct sr_if* interface = sr_get_interface(sr,current->iface);
+
+void send_unreachable_to_queued(struct sr_instance * sr, struct sr_arpreq * req) {
+	struct sr_packet * current = req -> packets; /* get the queued packets to the timed-out ARP-Req */
+	struct sr_if* interface = sr_get_interface(sr,current->iface); /* get the interface associated with the request */
 
 
 	while (current != NULL) {
@@ -32,6 +29,7 @@ void send_icmp_host_unreachable(struct sr_instance * sr, struct sr_arpreq * req)
 	}
 }
 
+/* DEPRECATED
 void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
 	struct sr_arp_hdr arp_header;
 	struct sr_if * interface;
@@ -49,23 +47,35 @@ void send_arp_request(struct sr_instance * sr, struct sr_arpreq * req) {
 
 	sr_wrap_and_send_pkt(sr, (uint8_t *)&arp_header, sizeof(struct sr_arp_hdr), req->ip, 0, ethertype_arp);
 }
+*/
 
-void sr_arpreq_handle(struct sr_instance * sr, struct sr_arpreq * req) {
+void sr_check_timeout_req(struct sr_instance * sr, struct sr_arpreq * req) {
 	if (difftime(time(0), req->sent > 1)) {
 
-	}
-	if (req->times_sent >= 5) {
-		/* fail, host is unreachable after 5 attempts */
-		send_icmp_host_unreachable(sr, req);
-		sr_arpreq_destroy(&sr->cache, req);
-	}
-	else {
-		/* send the arp request and increment times_sent */
-		send_arp_request(sr, req);
-		req -> sent = time(0);
-		req -> times_sent++;
+		if (req->times_sent >= 5) {
+			/* fail, host is unreachable after 5 attempts */
+			send_unreachable_to_queued(sr, req);
+			sr_arpreq_destroy(&sr->cache, req);
+		}
+		else {
+			/* send the arp request and increment times_sent */
+			/* TODO: do we flood to all interfaces? */
+			struct sr_if* thisInterface = sr->if_list;
+			while(thisInterface != NULL){
+				send_arp_message(sr, 1, ARP_BROADCAST_MAC, req->ip, thisInterface);
+				req -> sent = time(0);
+				req -> times_sent++;
+				thisInterface++;
+			}
+		}
 	}
 }
+
+/* 
+  This function gets called every second. For each request sent out, we keep
+  checking whether we should resend an request or destroy the arp request.
+  See the comments in the header file for an idea of what it should look like.
+*/
 
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
     /* Fill this in 
@@ -80,7 +90,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 	while (current != NULL) {
 
 
-		sr_arpreq_handle(sr, current);
+		sr_check_timeout_req(sr, current);
 		current = next;
 		if (current) next = current->next;
 
@@ -90,12 +100,14 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 
 void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
 	struct sr_packet * current = req->packets;
-	struct sr_ip_hdr * ip_header;
 
 	while (current != NULL) {
-		ip_header = (struct sr_ip_hdr *) current->buf;
-		sr_wrap_and_send_pkt(sr, current->buf, current->len, ip_header->ip_dst, 1, ethertype_ip);
-		current = current->next;
+		sr_arpentry * entry = sr_arpcache_lookup(&(sr->cache), req->ip)
+		unsigned char destMAC = entry->mac;
+		((sr_ether_hdr_t *) current->buf)->ether_dhost = (uint8_t) destMAC;
+		sr_send_packet(sr, current->buf, current->len, current->iface);
+		free(entry);
+
 	}
 }
 

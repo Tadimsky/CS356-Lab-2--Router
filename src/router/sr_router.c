@@ -294,41 +294,6 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     
     
 }
-/*
- Depricated
-void sr_icmp_send_type_3(struct sr_instance * sr, sr_ip_hdr_t * packet, uint8_t icmp_code) {
-	uint8_t * icmp_packet = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
-    
-	sr_ip_hdr_t * ip_header = (sr_ip_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t));
-	 setup ip header
-    
-    
-	 get route for the packet to send back to sender
-	struct sr_rt * route = sr_route_prefix_match(sr, &packet->ip_src);
-	if (route == NULL) {
-		 error
-		return;
-	}
-	 get interface that corresponds to the route
-	struct sr_if * iface = sr_get_interface(sr, route->interface);
-	if (iface == NULL) {
-		 error
-		return;
-	}
-    
-	sr_icmp_t3_hdr_t * icmp_header = (sr_icmp_t3_hdr_t *) (icmp_packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-	icmp_header->icmp_type = 3;
-	icmp_header->icmp_code = icmp_code;
-	icmp_header->icmp_sum = 0;
-	 data is first bit of original date
-	memcpy(icmp_header->data, packet, ICMP_DATA_SIZE);
-	icmp_header->icmp_sum = cksum(icmp_header, sizeof(sr_icmp_t3_hdr_t));
-	 send the packet
-	free(icmp_packet);
-    
-    
-}
-*/
 
 /**
  * Handles an ARP packet that is received by the router.
@@ -347,28 +312,37 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 	sr_arp_hdr_t *arphdr = (sr_arp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
 	
 	if(arphdr->ar_op == 1){ /* it's a request */
-        /* implicit decleration stuff TODO fix*/
-        memcpy((void*) (arphdr->ar_tha), (void *) (arphdr->ar_sha), (sizeof(unsigned char) * ETHER_ADDR_LEN));
+        /* implicit decleration stuff TODO fix */
+        memcpy((void*) (arphdr->ar_tha), (void *) (arphdr->ar_sha), (sizeof(unsigned char) * ETHER_ADDR_LEN)); /* switch around the fields (dest to src, vice versa) */
 		uint32_t target = arphdr->ar_tip;
 		arphdr->ar_tip = arphdr->ar_sip;
 		arphdr->ar_sip = target;
         
 		struct sr_if* interface = sr->if_list;
-		while(interface != NULL){
+		while(interface != NULL){ /* iterate through interfaces till it finds the intended target, fills in respective MAC */
 			
 			if(interface->ip == target){
                 memcpy((void*) (arphdr->ar_sha), (void *) (interface->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
 				/*arphdr->ar_sha = interface->addr;*/
+				send_arp_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface) /* send the reply */
 				break;
 			}
             
 			interface++;
 		}
+
+
 	}
 	else if (arphdr->ar_op == 2){ /* it's a reply*/
 		
-		sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip);
-		
+		sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip); /* store mapping in arpcache */
+		sr_arpreq* pending = sr->cache.requests;
+		while(pending != NULL){
+			if(pending->ip = arphdr->ar_sip){
+				sr_arpreq_send_packets(sr, pending);
+			}
+			pending++;
+		}
 	}
     
 }
@@ -544,76 +518,3 @@ int sr_util_mask_length(in_addr_t mask) {
 	}
 	return size;
 }
-
-void sr_wrap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type) {
-	struct sr_arpentry *arp_entry;
-	struct sr_arpreq *arp_req;
-	struct sr_ethernet_hdr eth_hdr;
-	uint8_t *eth_pkt;
-	struct sr_if *interface;
-	struct sr_rt *rt;
-	unsigned int eth_pkt_len;
-    
-	/* Look up shortest prefix match in your routing table. */
-    /* TODO: is this supposed to be sr_route_prefix_match ? */
-	rt = sr_longest_prefix_match(sr, ip_in_addr(dip));
-    
-	/* If the entry doesn't exist, send ICMP host unreachable and return if necessary. */
-	if (rt == 0) {
-		if (send_icmp)
-            /*TODO: this could use some tlc too*/
-			sr_send_icmp(sr, packet, len, 3, 0);
-		return;
-	}
-    
-	/* Fetch the appropriate outgoing interface. */
-	interface = sr_get_interface(sr, rt->interface);
-    
-	/* If there is already an arp entry in the cache, send now. */
-	arp_entry = sr_arpcache_lookup(&sr->cache, rt->gw.s_addr);
-	if (arp_entry || type == ethertype_arp) {
-        
-		/* Create the ethernet packet. */
-		eth_pkt_len = len + sizeof(eth_hdr);
-		eth_hdr.ether_type = htons(type);
-        
-		/* Destination is broadcast if it is an arp request. */
-		if (type == ethertype_arp && ((struct sr_arp_hdr *)packet)->ar_op == htons(arp_op_request))
-			memset(eth_hdr.ether_dhost, 255, ETHER_ADDR_LEN);
-        
-		/* Destination is the arp entry mac if it is an ip packet or and are reply. */
-		else
-			memcpy(eth_hdr.ether_dhost, arp_entry->mac, ETHER_ADDR_LEN);
-		memcpy(eth_hdr.ether_shost, interface->addr, ETHER_ADDR_LEN);
-		eth_pkt = malloc(eth_pkt_len);
-		memcpy(eth_pkt, &eth_hdr, sizeof(eth_hdr));
-		memcpy(eth_pkt + sizeof(eth_hdr), packet, len);
-		sr_send_packet(sr, eth_pkt, eth_pkt_len, rt->interface);
-		free(eth_pkt);
-		if (arp_entry)
-			free(arp_entry);
-        
-        /* Otherwise add it to the arp request queue. */
-	} else {
-		eth_pkt = malloc(len);
-		memcpy(eth_pkt, packet, len);
-		arp_req = sr_arpcache_queuereq(&sr->cache, rt->gw.s_addr, eth_pkt, len, rt->interface);
-        /* TODO: this routine doesnt exist*/
-		sr_arpreq_handle(sr, arp_req);
-		free(eth_pkt);
-	}
-}
-/*
-void sr_icmp_send(struct sr_instance * sr, sr_ip_hdr_t * packet, uint32_t len, char interface, uint8_t type) {
-
-	if (type == TTL_EXPIRED) {
-
-	}
-	else if (type == TYPE_THREE) {
-
-	}
-	else if (type == ECHO_REPLY) {
-
-	}
-}
- */
