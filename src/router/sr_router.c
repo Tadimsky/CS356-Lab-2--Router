@@ -315,17 +315,17 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 		arphdr->ar_tip = arphdr->ar_sip;
 		arphdr->ar_sip = target;
         
-		struct sr_if* interface = sr->if_list;
-		while(interface != NULL){ /* iterate through interfaces till it finds the intended target, fills in respective MAC */
+		struct sr_if* interfaceList = sr->if_list;
+		while(interfaceList != NULL){ /* iterate through interfaces till it finds the intended target, fills in respective MAC */
 			
-			if(interface->ip == target){
-                memcpy((void*) (arphdr->ar_sha), (void *) (interface->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
+			if(interfaceList->ip == target){
+                memcpy((void*) (arphdr->ar_sha), (void *) (interfaceList->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
 				/*arphdr->ar_sha = interface->addr;*/
 				send_arp_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface) /* send the reply */
 				break;
 			}
             
-			interface++;
+			interfaceList++;
 		}
 
 
@@ -333,9 +333,9 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 	else if (arphdr->ar_op == 2){ /* it's a reply*/
 		
 		sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip); /* store mapping in arpcache */
-		sr_arpreq* pending = sr->cache.requests;
+		struct sr_arpreq* pending = sr->cache.requests;
 		while(pending != NULL){
-			if(pending->ip = arphdr->ar_sip){
+			if(pending->ip == arphdr->ar_sip){
 				sr_arpreq_send_packets(sr, pending);
 			}
 			pending++;
