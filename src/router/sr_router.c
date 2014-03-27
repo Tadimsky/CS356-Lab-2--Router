@@ -253,9 +253,6 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     free(frame);
 }
 
-enum butts {
-	yolo = 1
-};
 /*
  Send a t3 message.  The ip header passed in will be put in the data field along with the first 8 bytes of the IP payload
  */
