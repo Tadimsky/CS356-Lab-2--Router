@@ -413,6 +413,7 @@ void sr_handle_arp_packet(struct sr_instance* sr,
     
 }
 
+
 /**
  * Handles an IP packet that is received by the router.
  * @param packet pointer points to the beginning of the IP header
@@ -470,8 +471,33 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 		if (route != NULL) {
 			uint8_t * fwd = malloc(len + sizeof(sr_ethernet_hdr_t));
 			memcpy(fwd + sizeof(sr_ethernet_hdr_t), iphdr, len);
-			/* send the packet */
-			free(fwd);
+            sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) fwd;
+            
+            uint8_t * ether_dhost;
+            /*TODO: add logic for getting ether_dhost*/
+            
+            /* Get source info*/
+            struct sr_if * iface = sr_get_interface(sr, interface);
+            if (iface == NULL) {
+                fprintf(stderr, "Invalid Interface: %s.\n", interface);
+            }
+            
+            /* Get destination info*/
+            struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), iphdr->ip_dst);
+            
+            if (entry != NULL) {
+                memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
+                memcpy((void *) (frame->ether_shost), iface->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+                memcpy((void *) (frame->ether_dhost), ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+                frame->ether_type = ethertype_ip;
+                sr_send_packet(sr, fwd, len + sizeof(sr_ethernet_hdr_t), interface);
+                free(fwd);
+            } else {
+                /* TODO: Put IP packet in queue, send out arp request and obviously cant send*/
+                sr_arpcache_queuereq(&sr->cache, iphdr->ip_dst, (uint8_t *) iphdr, len, interface);
+                sr_arp_request(sr, iphdr->ip_dst, (uint8_t *) iphdr, len, interface);
+            }
+            
 		}
 		else {
 			/* no route found
