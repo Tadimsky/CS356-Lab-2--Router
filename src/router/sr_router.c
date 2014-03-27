@@ -172,7 +172,7 @@ bool create_icmp_header(sr_icmp_hdr_t * icmp_hdr, uint8_t icmp_type, uint8_t icm
     icmp_hdr->icmp_type = icmp_type;
     icmp_hdr->icmp_code = icmp_code;
     icmp_hdr->icmp_sum  = 0 ;
-    icmp_hdr->icmp_sum = htons(cksum((void *)icmp_hdr, sizeof(sr_icmp_hdr_t)));
+    icmp_hdr->icmp_sum = cksum((void *)icmp_hdr, sizeof(sr_icmp_hdr_t));
     return true;
 }
 
@@ -188,7 +188,7 @@ bool create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t icmp_code, ui
 
     memcpy((icmp_t3_hdr->data), data, sizeof(uint8_t) * ICMP_DATA_SIZE);
     
-    icmp_t3_hdr->icmp_sum = htons(cksum(icmp_t3_hdr, sizeof(sr_icmp_t3_hdr_t)));
+    icmp_t3_hdr->icmp_sum = cksum(icmp_t3_hdr, sizeof(sr_icmp_t3_hdr_t));
     
     return true;
 }
@@ -277,6 +277,7 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     uint8_t ether_shost;
     memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     uint8_t ether_dhost;
+    /* TODO: Need to look this up and request if it doesn't work */
     memcpy(&ether_dhost, &((sr_arpcache_lookup( &(sr->cache), packet->ip_src))->mac), sizeof(unsigned char) * ETHER_ADDR_LEN);
     
     /* Icmp is always IP */
