@@ -148,12 +148,10 @@ void sr_handlepacket(struct sr_instance* sr,
  Has NO logic for handling data greater than ethernet's MTU
  destination ethernet address, source ethernet address, packet type ID
  */
-sr_ethernet_hdr_t * create_ethernet_header (uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
-    sr_ethernet_hdr_t hdr;
-    sr_ethernet_hdr_t * eth_hdr = & hdr;
+sr_ethernet_hdr_t * create_ethernet_header (sr_ethernet_hdr_t * eth_hdr, uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
     memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
-    eth_hdr->ether_type = ether_type;
+    eth_hdr->ether_type = htons(ether_type);
     return eth_hdr;
 }
 
