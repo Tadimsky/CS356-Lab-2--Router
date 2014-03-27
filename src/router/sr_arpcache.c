@@ -107,7 +107,7 @@ void sr_arpreq_send_packets(struct sr_instance * sr, struct sr_arpreq * req) {
 		struct sr_arpentry * entry = sr_arpcache_lookup(&(sr->cache), req->ip);
 		if (entry != NULL) {
 			unsigned char * destMAC = entry->mac;
-			memcpy(((sr_ethernet_hdr_t *) current->buf)->ether_dhost, destMAC, sizeof(unsigned char) * 6);
+			memcpy(((sr_ethernet_hdr_t *) current->buf)->ether_dhost, destMAC, sizeof(unsigned char) * ETHER_ADDR_LEN);
 			sr_send_packet(sr, current->buf, current->len, current->iface);
 			free(entry);
 		}

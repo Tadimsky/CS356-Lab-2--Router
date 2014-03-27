@@ -156,13 +156,11 @@ bool create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_size, uin
     pkt->ip_off = htons(IP_DEFAULT_OFF);
     pkt->ip_ttl = IP_DEFAULT_TTL;
     pkt->ip_p = ip_proto;
-    pkt->ip_sum = htons(0);
+    pkt->ip_sum = 0;
     /* htons? */
     pkt->ip_src = htonl(ip_src);
     pkt->ip_dst = htonl(ip_dst);
-
-    /* should the checksum not be the size of the header + size of payload? */
-    pkt->ip_sum = htons(cksum(((void *) pkt), sizeof(sr_ip_hdr_t)));
+    pkt->ip_sum = cksum(((void *) pkt), sizeof(sr_ip_hdr_t));
     return true;
 }
 /*
@@ -233,7 +231,8 @@ void sr_arp_send_message(struct sr_instance * sr, unsigned short ar_op, unsigned
     ptr += sizeof(sr_ethernet_hdr_t);
 
     create_arp_header((sr_arp_hdr_t *) ptr, ar_op, ar_sha, ar_sip, ar_tha, ar_tip);
-    
+
+    fprintf(stderr, "Sending ARP:\n");
     print_hdrs((uint8_t *)frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), interface );
     
@@ -252,27 +251,31 @@ void sr_arp_request(struct sr_instance * sr, uint32_t ip_addr, uint8_t * packet,
 
 /*Send a non type 3 icmp message*/
 void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
+
     /* Get source and destination MACs */
-    uint8_t ether_shost;
+    uint8_t * ether_shost = malloc(sizeof(unsigned char) * ETHER_ADDR_LEN);
+
     struct sr_if * iface = sr_get_interface(sr, interface);
 	if (iface == NULL) {
 		fprintf(stderr, "Invalid Interface: %s.\n", interface);
 	}
+    memcpy((void*) ether_shost, iface->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
 
-    memcpy((void*) &ether_shost, iface->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
-    
-    uint8_t ether_dhost;
+    uint8_t * ether_dhost = malloc(sizeof(unsigned char) * ETHER_ADDR_LEN);
     struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), packet->ip_src);
     if (entry != NULL) {
-    	memcpy(&ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    	memcpy(ether_dhost, entry->mac, sizeof(unsigned char) * ETHER_ADDR_LEN);
     }
 
     /* Icmp is always IP */
     uint16_t ether_type = ethertype_ip;
     
     /* Allocate memory for Ethernet frame and fill it with an Eth header */
+
+
+
     sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));
-    create_ethernet_header(frame, &ether_dhost, &ether_shost, ether_type);
+    create_ethernet_header(frame, ether_dhost, ether_shost, ether_type);
     
     void * ptr = (void *) frame;
     ptr += sizeof(sr_ethernet_hdr_t);
@@ -289,7 +292,6 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     create_icmp_header((sr_icmp_hdr_t*)ptr, icmp_type, icmp_code);
     
     unsigned int packet_len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
-
     if (entry == NULL) {
     	/* do not know the MAC, need to send arp request and queue packet on this request */
     	sr_arp_request(sr, ip_dst, (uint8_t *) frame, packet_len, interface);
@@ -399,9 +401,8 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 
 	}
 	else if (arphdr->ar_op == 2){ /* it's a reply*/
-		
-		sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip); /* store mapping in arpcache */
-		struct sr_arpreq* pending = sr->cache.requests;
+		fprintf(stderr, "Got an ARP Reply!\n");
+		struct sr_arpreq* pending = sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip); /* store mapping in arpcache */
 		while(pending != NULL){
 			if(pending->ip == arphdr->ar_sip){
 				sr_arpreq_send_packets(sr, pending);
@@ -497,10 +498,10 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 		return;
 	}
 	sr_ip_hdr_t * ip_hdr = (sr_ip_hdr_t *)(packet);
-    sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t *) ((void *) packet + sizeof(sr_ip_hdr_t));
+    sr_icmp_hdr_t * icmp_hdr = (sr_icmp_hdr_t *) (((void *) packet)+ sizeof(sr_ip_hdr_t));
 
 	/* implement this */
-    
+    /*
     uint16_t sum = icmp_hdr->icmp_sum;
     icmp_hdr->icmp_sum = 0;
     
@@ -523,12 +524,11 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
 			
 			break;
 		default:
-            
+			/* # yolo swag */
             break;
             
     }
-                
-
+    fprintf(stderr, "yolo\n");
 }
 
 /**
