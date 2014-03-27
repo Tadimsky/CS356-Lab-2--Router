@@ -34,7 +34,6 @@ bool sr_packet_is_final_destination(struct sr_instance* sr, sr_ip_hdr_t * header
 bool sr_packet_is_sender(struct sr_instance* sr, sr_ip_hdr_t * header);
 struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr);
 int sr_util_mask_length(in_addr_t mask);
-void sr_encap_and_send_pkt(struct sr_instance* sr, uint8_t *packet, unsigned int len, uint32_t dip, int send_icmp, enum sr_ethertype type);
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -321,7 +320,7 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 			if(interfaceList->ip == target){
                 memcpy((void*) (arphdr->ar_sha), (void *) (interfaceList->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
 				/*arphdr->ar_sha = interface->addr;*/
-				sr_arp_send_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface) /* send the reply */
+				sr_arp_send_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface); /* send the reply */
 				break;
 			}
             
