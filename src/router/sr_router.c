@@ -203,7 +203,13 @@ bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned c
     arp_hdr->ar_op = htons(arp_op);
     memcpy((void *) arp_hdr->ar_sha , ar_sha, sizeof(unsigned char) * ETHER_ADDR_LEN);
     arp_hdr->ar_sip = htonl(ar_sip);
-    memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    if (arp_op == arp_op_reply) {
+    	memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    }
+    else {
+    	memset(arp_hdr->ar_tha, 0, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    }
+
     arp_hdr->ar_tip = htonl(ar_tip);
     return true;
 }
@@ -228,6 +234,7 @@ void sr_arp_send_message(struct sr_instance * sr, unsigned short ar_op, unsigned
 
     create_arp_header((sr_arp_hdr_t *) ptr, ar_op, ar_sha, ar_sip, ar_tha, ar_tip);
     
+    print_hdrs((uint8_t *)frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), interface );
     
     free(frame);
@@ -335,17 +342,18 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     ptr += sizeof(sr_ip_hdr_t);
     /* The data field of the t3 header is the IP header and the first 8 bytes of the IP payload */
     create_icmp_t3_header((sr_icmp_t3_hdr_t *) ptr, icmp_code, (uint8_t *) packet);
+    uint32_t packet_len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t);
     
     if (entry == NULL) {
     	/* send arp request and queue packet behind this request */
-
+    	sr_arp_request(sr, ip_dst, (uint8_t *) frame, packet_len, interface);
     }
     else {
 		/* Send the ethernet frame to the desired interface! */
-		sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), interface);
+		sr_send_packet(sr, (uint8_t*) frame, packet_len, interface);
 		/* Don't forget to free no longer needed memory*/
-		free(frame);
     }
+    free(frame);
 }
 
 /**
