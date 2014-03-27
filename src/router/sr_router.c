@@ -210,9 +210,15 @@ bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned c
 
 void sr_arp_send_message(struct sr_instance * sr, unsigned short ar_op, unsigned char * ar_tha, uint32_t ar_tip, char * interface) {
 	/* TODO: do we just use the first item in the list? */
-    uint32_t ar_sip = ntohl(sr->if_list->ip);
+	struct sr_if * iface = sr_get_interface(sr, interface);
+	if (iface == NULL) {
+		fprintf(stderr, "Invalid Interface: %s.\n", interface);
+		return;
+	}
+
+    uint32_t ar_sip = ntohl(iface->ip);
     unsigned char * ar_sha = malloc(sizeof(unsigned char) * ETHER_ADDR_LEN);
-    memcpy((void*) ar_sha, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    memcpy((void*) ar_sha, iface->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     
     sr_ethernet_hdr_t * frame = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
     create_ethernet_header(frame, ar_tha, (uint8_t *)ar_sha, ethertype_arp);
@@ -241,7 +247,12 @@ void sr_arp_request(struct sr_instance * sr, uint32_t ip_addr, uint8_t * packet,
 void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t icmp_code,sr_ip_hdr_t * packet, char* interface) {
     /* Get source and destination MACs */
     uint8_t ether_shost;
-    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    struct sr_if * iface = sr_get_interface(sr, interface);
+	if (iface == NULL) {
+		fprintf(stderr, "Invalid Interface: %s.\n", interface);
+	}
+
+    memcpy((void*) &ether_shost, iface->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     
     uint8_t ether_dhost;
     struct sr_arpentry * entry = sr_arpcache_lookup( &(sr->cache), packet->ip_src);
@@ -279,9 +290,9 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     else {
     	/* Send the ethernet frame to the desired interface! */
 		sr_send_packet(sr, (uint8_t*) frame, packet_len, interface );
-		/* Don't forget to free no longer needed memory*/
-		free(frame);
     }
+    /* Don't forget to free no longer needed memory*/
+    free(frame);
 }
 
 /*
@@ -290,7 +301,12 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
 void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_hdr_t * packet, char* interface){
     /* Get source and destination MACs */
     uint8_t ether_shost;
-    memcpy((void*) &ether_shost, sr->if_list->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
+    struct sr_if * iface = sr_get_interface(sr, interface);
+	if (iface == NULL) {
+		fprintf(stderr, "Invalid Interface: %s.\n", interface);
+	}
+
+    memcpy((void*) &ether_shost, iface->addr, sizeof(unsigned char) * ETHER_ADDR_LEN);
     uint8_t ether_dhost;
 
 
@@ -573,4 +589,14 @@ int sr_util_mask_length(in_addr_t mask) {
 		checker = checker >> 1;
 	}
 	return size;
+}
+
+struct sr_if * sr_get_interface(struct sr_instance * sr, char * interface) {
+	struct sr_if * cur = sr->if_list;
+	while (cur != NULL) {
+		if (strncmp(cur->name, interface, 32) == 0) {
+			return cur;
+		}
+	}
+	return NULL;
 }
