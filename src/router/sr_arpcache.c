@@ -13,7 +13,7 @@
 
 #define MAX_SEND_ARP 5
 #define ICMP_T3_TYPE 3
-#define ARP_BROADCAST_MAC 0xFFFFFFFFFFFF
+#define ARP_BROADCAST_MAC 0xFFFFFFFFFFFF /* TODO: can I cast this as a char array? (char*) ... */
 
 
 
@@ -62,7 +62,7 @@ void sr_check_timeout_req(struct sr_instance * sr, struct sr_arpreq * req) {
 			/* TODO: do we flood to all interfaces? */
 			struct sr_if* thisInterface = sr->if_list;
 			while(thisInterface != NULL){
-				sr_arp_send_message(sr, 1, ARP_BROADCAST_MAC, req->ip, thisInterface);
+				sr_arp_send_message(sr, htons((uint16_t) ARP_REQUEST), (char*) ARP_BROADCAST_MAC, /* STOPPING HERE .. TODO */ req->ip, thisInterface);
 				req -> sent = time(0);
 				req -> times_sent++;
 				thisInterface++;

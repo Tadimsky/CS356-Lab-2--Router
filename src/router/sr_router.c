@@ -97,7 +97,7 @@ void sr_handlepacket(struct sr_instance* sr,
 
 	/* check if packet is valid ethernet */
 	uint32_t minsize = sizeof(sr_ethernet_hdr_t);
-	if (len < minsize) {
+	if (ntohl(len) < minsize) {
 		fprintf(stderr, "This is not a valid ETHERNET packet, length is too short.");
 		return;
 	}
@@ -129,6 +129,7 @@ void sr_handlepacket(struct sr_instance* sr,
  destination ethernet address, source ethernet address, packet type ID
  */
 bool create_ethernet_header (sr_ethernet_hdr_t * eth_hdr, uint8_t* ether_dhost, uint8_t* ether_shost, uint16_t ether_type) {
+	/* MAC addresses are arrays of 8 byte segments so do not need network/host order conversion */
     memcpy((void *) eth_hdr->ether_dhost, (void *) ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     memcpy((void *) eth_hdr->ether_shost, (void *) ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
     eth_hdr->ether_type = htons(ether_type);
@@ -150,13 +151,13 @@ bool create_ip_header(sr_ip_hdr_t * pkt, uint8_t ip_proto, int payload_size, uin
     pkt->ip_off = htons(IP_DEFAULT_OFF);
     pkt->ip_ttl = IP_DEFAULT_TTL;
     pkt->ip_p = ip_proto;
-    pkt->ip_sum = 0;
+    pkt->ip_sum = htons(0);
     /* htons? */
-    pkt->ip_src =ip_src;
-    pkt->ip_dst = ip_dst;
+    pkt->ip_src = htonl(ip_src);
+    pkt->ip_dst = htonl(ip_dst);
 
     /* should the checksum not be the size of the header + size of payload? */
-    pkt->ip_sum = cksum(((void *) pkt), sizeof(sr_ip_hdr_t));
+    pkt->ip_sum = htons(cksum(((void *) pkt), sizeof(sr_ip_hdr_t)));
     return true;
 }
 /*
@@ -166,7 +167,7 @@ bool create_icmp_header(sr_icmp_hdr_t * icmp_hdr, uint8_t icmp_type, uint8_t icm
     icmp_hdr->icmp_type = icmp_type;
     icmp_hdr->icmp_code = icmp_code;
     icmp_hdr->icmp_sum  = 0 ;
-    icmp_hdr->icmp_sum = cksum((void *)icmp_hdr, sizeof(sr_icmp_hdr_t));
+    icmp_hdr->icmp_sum = htons(cksum((void *)icmp_hdr, sizeof(sr_icmp_hdr_t)));
     return true;
 }
 
@@ -182,7 +183,7 @@ bool create_icmp_t3_header(sr_icmp_t3_hdr_t * icmp_t3_hdr, uint8_t icmp_code, ui
 
     memcpy((icmp_t3_hdr->data), data, sizeof(uint8_t) * ICMP_DATA_SIZE);
     
-    icmp_t3_hdr->icmp_sum = cksum(icmp_t3_hdr, sizeof(sr_icmp_t3_hdr_t));
+    icmp_t3_hdr->icmp_sum = htons(cksum(icmp_t3_hdr, sizeof(sr_icmp_t3_hdr_t)));
     
     return true;
 }
@@ -196,7 +197,7 @@ bool create_arp_header(sr_arp_hdr_t * arp_hdr, unsigned short arp_op, unsigned c
     arp_hdr->ar_pln = sizeof(uint32_t);
     arp_hdr->ar_op = htons(arp_op);
     memcpy((void *) arp_hdr->ar_sha , ar_sha, sizeof(unsigned char) * ETHER_ADDR_LEN);
-    arp_hdr->ar_sip = ar_sip;
+    arp_hdr->ar_sip = htonl(ar_sip);
     memcpy((void *) arp_hdr->ar_tha , ar_tha, sizeof(unsigned char) * ETHER_ADDR_LEN);
     arp_hdr->ar_tip = htonl(ar_tip);
     return true;
@@ -325,7 +326,7 @@ void sr_handle_arp_packet(struct sr_instance* sr,
 			if(interfaceList->ip == target){
                 memcpy((void*) (arphdr->ar_sha), (void *) (interfaceList->addr), (sizeof(unsigned char) * ETHER_ADDR_LEN));
 				/*arphdr->ar_sha = interface->addr;*/
-				sr_arp_send_message(sr, 2, arphdr->ar_tha, arphdr->ar_tip, interface); /* send the reply */
+				sr_arp_send_message(sr, htons((uint16_t) ARP_REPLY), arphdr->ar_tha, arphdr->ar_tip, interface); /* send the reply */
 				break;
 			}
             

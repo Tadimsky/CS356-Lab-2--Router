@@ -107,6 +107,12 @@ enum icmp_ttl {
 	ICMP_TIME_EXCEEDED_CODE = 0
 };
 
+/* ARP OpCodes */
+enum arp_op {
+	ARP_REQUEST = 1,
+	ARP_REPLY = 2
+};
+
 
 
 #endif /* SR_ROUTER_H */
