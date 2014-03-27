@@ -253,8 +253,8 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     uint16_t ether_type = ethertype_ip;
     
     /* Allocate memory for Ethernet frame and fill it with an Eth header */
-    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));
-    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t));
+    create_ethernet_header(frame, &ether_dhost, &ether_shost, ether_type);
     
     void * ptr = (void *) frame;
     ptr += sizeof(sr_ethernet_hdr_t);
@@ -264,11 +264,11 @@ void sr_icmp_send_message(struct sr_instance * sr, uint8_t icmp_type, uint8_t ic
     uint32_t ip_dst= packet->ip_src;
     
     /* Place IP header right after the Ethernet Header*/
-    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
+    create_ip_header((sr_ip_hdr_t *)ptr, ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst);
     
     /* Place ICMP header right after IP header */
     ptr += sizeof(sr_ip_hdr_t);
-    memcpy(ptr,create_icmp_header(icmp_type, icmp_code), sizeof(sr_icmp_hdr_t));
+    create_icmp_header((sr_icmp_hdr_t*)ptr, icmp_type, icmp_code);
     
     /* Send the ethernet frame to the desired interface! */
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t), interface );
@@ -289,9 +289,8 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     uint16_t ether_type = ethertype_ip;
     
     /* Allocate memory for Ethernet frame and fill it with an Eth header */
-    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
-    memcpy((void*) frame, create_ethernet_header(&ether_dhost, &ether_shost, ether_type), sizeof(sr_ethernet_hdr_t));
-    
+    sr_ethernet_hdr_t * frame = (sr_ethernet_hdr_t *) malloc(sizeof(sr_ethernet_hdr_t) +  sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
+    create_ethernet_header(frame, &ether_dhost, &ether_shost, ether_type);
     void * ptr = (void *) frame;
     ptr += sizeof(sr_ethernet_hdr_t);
     
@@ -300,12 +299,12 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     uint32_t ip_dst= packet->ip_src;
     
     /* Place IP header right after the Ethernet Header*/
-    memcpy(ptr, create_ip_header(ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst), sizeof(sr_ip_hdr_t));
+    create_ip_header((sr_ip_hdr_t * )ptr, ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst);
     
     /* Place ICMPT3 header right after IP header */
     ptr += sizeof(sr_ip_hdr_t);
     /* The data field of the t3 header is the IP header and the first 8 bytes of the IP payload */
-    memcpy(ptr,create_icmp_t3_header(icmp_code,(uint8_t *) packet), sizeof(sr_icmp_t3_hdr_t));
+    create_icmp_t3_header((sr_icmp_t3_hdr_t *) ptr, icmp_code, (uint8_t *) packet);
     
     /* Send the ethernet frame to the desired interface! */
     sr_send_packet(sr, (uint8_t*) frame, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), interface);
@@ -410,7 +409,7 @@ void sr_handle_ip_packet(struct sr_instance* sr,
 
 	uint16_t old_sum = iphdr->ip_sum;
 	iphdr->ip_sum = 0;
-	uint16_t computed_cksum = cksum((void*)packet, len);
+	uint16_t computed_cksum = cksum((void*)packet, sizeof(sr_ip_hdr_t));
 
 
 	if (computed_cksum != old_sum) {
