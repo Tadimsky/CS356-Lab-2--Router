@@ -172,9 +172,9 @@ sr_ip_hdr_t * create_ip_header(uint8_t ip_proto, int payload_size, uint32_t ip_s
      TODO: not sure about tos, id, frag, ttl
      */
     pkt->ip_tos = IP_DEFAULT_TOS;
-    pkt->ip_len = (uint16_t) (sizeof(sr_ip_hdr_t) + payload_size);
-    pkt->ip_id = IP_DEFAULT_ID;
-    pkt->ip_off = IP_DEFAULT_OFF;
+    pkt->ip_len = htons((uint16_t) (sizeof(sr_ip_hdr_t) + payload_size));
+    pkt->ip_id = htons(IP_DEFAULT_ID);
+    pkt->ip_off = htons(IP_DEFAULT_OFF);
     pkt->ip_ttl = IP_DEFAULT_TTL;
     pkt->ip_p = ip_proto;
     pkt->ip_sum = 0;
