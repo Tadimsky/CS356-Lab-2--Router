@@ -61,8 +61,10 @@ void sr_check_timeout_req(struct sr_instance * sr, struct sr_arpreq * req) {
 			/* send the arp request and increment times_sent */
 			/* TODO: do we flood to all interfaces? */
 			struct sr_if* thisInterface = sr->if_list;
+			unsigned char value[ETHER_ADDR_LEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 			while(thisInterface != NULL){
-				sr_arp_send_message(sr, htons((uint16_t) ARP_REQUEST), (char*) ARP_BROADCAST_MAC, /* STOPPING HERE .. TODO */ req->ip, thisInterface);
+
+				sr_arp_send_message(sr, (uint16_t) ARP_REQUEST, value, /* STOPPING HERE .. TODO */ req->ip, thisInterface);
 				req -> sent = time(0);
 				req -> times_sent++;
 				thisInterface = thisInterface->next;
