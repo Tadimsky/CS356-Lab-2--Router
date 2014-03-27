@@ -289,8 +289,8 @@ void sr_icmp_send_t3_message(struct sr_instance * sr, uint8_t icmp_code, sr_ip_h
     ptr += sizeof(sr_ethernet_hdr_t);
     
     /* TODO:Do we need to use sr_rt at all? */
-    uint32_t ip_src = packet->ip_dst;
-    uint32_t ip_dst= packet->ip_src;
+    uint32_t ip_src = ntohl(packet->ip_dst);
+    uint32_t ip_dst= ntohl(packet->ip_src);
     
     /* Place IP header right after the Ethernet Header*/
     create_ip_header((sr_ip_hdr_t * )ptr, ip_protocol_icmp, sizeof(sr_icmp_hdr_t), ip_src, ip_dst);
