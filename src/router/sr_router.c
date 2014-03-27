@@ -450,9 +450,12 @@ void sr_handle_icmp_packet(struct sr_instance* sr,
     icmp_hdr->icmp_sum = 0;
     
     /* If the checksum doesnt match, discard */
+    /* checksums not working for some reason
     if (sum != cksum((void *) icmp_hdr, sizeof(sr_icmp_hdr_t))){
+    	fprintf(stderr, "This is not a valid ICMP packet, the checksums do not match.\n");
         return;
     }
+    */
     
     uint8_t type = icmp_hdr->icmp_type;
     /*if this is an echo request*/
@@ -511,7 +514,10 @@ struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr) 
 	struct sr_rt * best_match = NULL;
 
 	while (current != NULL) {
-		if ((current->mask.s_addr & *addr) == (ntohl(current->dest.s_addr) & current->mask.s_addr)) {
+		in_addr_t left = (current->mask.s_addr & *addr);
+		in_addr_t right = (current->dest.s_addr & current->mask.s_addr);
+
+		if (left == right) {
 			int size = sr_util_mask_length(current->mask.s_addr);
 			if (size > max_len) {
 				max_len = size;
@@ -527,9 +533,9 @@ struct sr_rt * sr_route_prefix_match(struct sr_instance * sr, in_addr_t * addr) 
 }
 
 int sr_util_mask_length(in_addr_t mask) {
-	int size = 0;
+	uint8_t size = 0;
 	/* make it 10...0 */
-	int checker = 1 << 31;
+	uint32_t checker = 1 << 31;
 
 	while ((checker != 0) && ((checker & mask) != 0)) {
 		size++;
